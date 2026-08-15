@@ -4,8 +4,6 @@ import { Contrato, Capa, Categoria } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
-const API = process.env.LUPIA_API_URL || "http://127.0.0.1:8010";
-
 // Fila cruda que devuelve GET /alertas del backend (una por señal)
 interface AlertaApi {
   id: number; id_contrato: string; senal: string; score: number; detalle: string;
@@ -71,9 +69,12 @@ function fmtFecha(iso: string | null): string {
   return isNaN(d.getTime()) ? iso.slice(0, 10) : `${d.getDate()} ${MESES[d.getMonth()]} ${d.getFullYear()}`;
 }
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
-    const r = await fetch(`${API}/alertas?limite=300`, { cache: "no-store" });
+    // Via el propio rewrite /lupia-api (la ruta al backend que ya funciona en
+    // cualquier entorno), en vez de depender de env vars en el runtime SSR.
+    const base = new URL(req.url).origin;
+    const r = await fetch(`${base}/lupia-api/alertas?limite=300`, { cache: "no-store" });
     if (!r.ok) throw new Error(`backend ${r.status}`);
     const alertas = (await r.json()) as AlertaApi[];
     if (!alertas.length) throw new Error("sin alertas");
