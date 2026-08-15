@@ -159,7 +159,9 @@ class _PgConnection:
 
     def execute(self, sql: str, params=()):  # noqa: ANN001
         cur = self._conn.cursor(cursor_factory=self._factory)
-        cur.execute(sql.replace("?", "%s"), list(params))
+        # psycopg2 usa %s como placeholder: escapar % literales (LIKE '...%')
+        # ANTES de convertir los ? en %s
+        cur.execute(sql.replace("%", "%%").replace("?", "%s"), list(params))
         return cur
 
     def executescript(self, script: str) -> None:

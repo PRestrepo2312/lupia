@@ -211,8 +211,18 @@ else:
         VisibilityConfig={"SampledRequestsEnabled": True, "CloudWatchMetricsEnabled": True,
                           "MetricName": "lupiaWaf"},
     )["Summary"]["ARN"]
-waf.associate_web_acl(WebACLArn=acl_arn, ResourceArn=alb_arn)
-print(f"WAF asociado al ALB: {acl_arn.split('/')[-2]}")
+# El ALB recien creado tarda en ser visible para WAF: reintentar y VERIFICAR
+asociado = waf.get_web_acl_for_resource(ResourceArn=alb_arn).get("WebACL")
+for intento in range(15):
+    if asociado:
+        break
+    try:
+        waf.associate_web_acl(WebACLArn=acl_arn, ResourceArn=alb_arn)
+    except waf.exceptions.WAFUnavailableEntityException:
+        print(f"  ALB aun aprovisionando para WAF, reintento {intento + 1}/15...", flush=True)
+        time.sleep(30)
+    asociado = waf.get_web_acl_for_resource(ResourceArn=alb_arn).get("WebACL")
+print(f"WAF asociado al ALB: {'SI' if asociado else 'NO - reintentar luego'}")
 
 # ---------- 6. Esperar RDS y armar DATABASE_URL ----------
 
@@ -231,6 +241,13 @@ print(f"RDS: {endpoint}")
 # ---------- 7. ECS: cluster, task definition, servicio ----------
 
 paso("ECS Fargate")
+# Primera vez que la cuenta usa ECS: crear el service-linked role explicitamente
+try:
+    iam.create_service_linked_role(AWSServiceName="ecs.amazonaws.com")
+    print("Service-linked role de ECS creado (primera vez)")
+    time.sleep(10)
+except iam.exceptions.InvalidInputException:
+    pass  # ya existe
 ecs.create_cluster(clusterName="lupia")
 try:
     logs.create_log_group(logGroupName="/ecs/lupia-api")
@@ -282,13 +299,22 @@ if servicios and servicios[0]["status"] == "ACTIVE":
                        desiredCount=1, forceNewDeployment=True)
     print("Servicio actualizado")
 else:
-    ecs.create_service(
-        cluster="lupia", serviceName="lupia-api", taskDefinition=taskdef,
-        desiredCount=1, launchType="FARGATE", networkConfiguration=red,
-        loadBalancers=[{"targetGroupArn": tg_arn, "containerName": "api", "containerPort": 8010}],
-        healthCheckGracePeriodSeconds=60,
-    )
-    print("Servicio creado")
+    for intento in range(6):
+        try:
+            ecs.create_service(
+                cluster="lupia", serviceName="lupia-api", taskDefinition=taskdef,
+                desiredCount=1, launchType="FARGATE", networkConfiguration=red,
+                loadBalancers=[{"targetGroupArn": tg_arn, "containerName": "api",
+                                "containerPort": 8010}],
+                healthCheckGracePeriodSeconds=60,
+            )
+            print("Servicio creado")
+            break
+        except ecs.exceptions.InvalidParameterException as e:
+            if "service linked role" not in str(e):
+                raise
+            print(f"  Esperando el service-linked role de ECS ({intento + 1}/6)...", flush=True)
+            time.sleep(15)
 
 paso("LISTO")
 print(f"API (cuando el target este healthy, ~2 min): http://{alb_dns}/salud")
