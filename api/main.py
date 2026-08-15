@@ -5,13 +5,13 @@ Correr desde la raiz del proyecto:
 """
 import json
 
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from engine import config, correo, db, ia, ingesta, proveedores, senales
 
-from api.auth import router as auth_router
+from api.auth import router as auth_router, usuario_actual
 
 app = FastAPI(
     title="LupIA API",
@@ -221,6 +221,59 @@ def crear_suscripcion(s: Suscripcion):
     return {"ok": True}
 
 
+@app.get("/suscripciones/mias")
+def mis_suscripciones(usuario: dict = Depends(usuario_actual)):
+    """Las alertas activas del usuario autenticado (para verlas y desactivarlas)."""
+    with db.get_conn() as conn:
+        return [dict(f) for f in conn.execute(
+            "SELECT id, departamento, municipio, creada_en FROM suscripciones "
+            "WHERE correo = ? ORDER BY id", (usuario["correo"],),
+        )]
+
+
+@app.delete("/suscripciones/{sid}")
+def borrar_suscripcion(sid: int, usuario: dict = Depends(usuario_actual)):
+    with db.get_conn() as conn:
+        conn.execute("DELETE FROM suscripciones WHERE id = ? AND correo = ?",
+                     (sid, usuario["correo"]))
+    return {"ok": True}
+
+
+# ---------- perfil de empresa (onboarding Modo Empresa) ----------
+
+class PerfilEmpresa(BaseModel):
+    tiene_empresa: bool
+    nit: str | None = None
+    intereses: list[str] = []  # ejecutados | en_ejecucion | convocatorias
+
+
+@app.post("/empresa/perfil")
+def guardar_perfil_empresa(p: PerfilEmpresa, usuario: dict = Depends(usuario_actual)):
+    with db.get_conn() as conn:
+        conn.execute(
+            "INSERT INTO empresa_perfil (correo, tiene_empresa, nit, intereses) VALUES (?,?,?,?) "
+            "ON CONFLICT (correo) DO UPDATE SET tiene_empresa=excluded.tiene_empresa, "
+            "nit=excluded.nit, intereses=excluded.intereses",
+            (usuario["correo"], int(p.tiene_empresa),
+             "".join(c for c in (p.nit or "") if c.isdigit()) or None,
+             ",".join(p.intereses)),
+        )
+    return {"ok": True}
+
+
+@app.get("/empresa/perfil")
+def ver_perfil_empresa(usuario: dict = Depends(usuario_actual)):
+    with db.get_conn() as conn:
+        fila = conn.execute(
+            "SELECT tiene_empresa, nit, intereses FROM empresa_perfil WHERE correo = ?",
+            (usuario["correo"],),
+        ).fetchone()
+    if not fila:
+        raise HTTPException(404, "Sin perfil de empresa todavia")
+    return {"tiene_empresa": bool(fila["tiene_empresa"]), "nit": fila["nit"],
+            "intereses": (fila["intereses"] or "").split(",") if fila["intereses"] else []}
+
+
 @app.post("/alertas/enviar-correos")
 def enviar_correos(maximo: int = 10):
     """Manda por Brevo las alertas pendientes a los suscriptores del departamento.
@@ -258,7 +311,7 @@ def enviar_correos(maximo: int = 10):
                 continue
             correo.enviar_correo(
                 destinatarios,
-                f"🔍 LupIA: nueva señal en {c['departamento']}",
+                f"LupIA · Nueva señal en {c['departamento']}",
                 correo.html_alerta(c, alertas),
             )
             conn.execute(

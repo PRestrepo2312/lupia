@@ -16,7 +16,7 @@ const GOOGLE_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "";
 interface Props {
   motivo: string | null;
   onClose: () => void;
-  onEntrar: (token: string, usuario: Usuario, msg: string) => void;
+  onEntrar: (token: string, usuario: Usuario, msg: string, nuevo?: boolean) => void;
 }
 
 export function LoginModal({ motivo, onClose, onEntrar }: Props) {
@@ -55,7 +55,7 @@ export function LoginModal({ motivo, onClose, onEntrar }: Props) {
         callback: async (resp: { credential: string }) => {
           try {
             const r = await auth.google(resp.credential);
-            onEntrar(r.token, r.usuario, `Entraste con Google como ${r.usuario.correo}`);
+            onEntrar(r.token, r.usuario, `Entraste con Google como ${r.usuario.correo}`, r.nuevo);
           } catch (e) { fallo(e); }
         },
       });
@@ -79,7 +79,7 @@ export function LoginModal({ motivo, onClose, onEntrar }: Props) {
 
   const verificarCodigo = () => correr(async () => {
     const r = await auth.verificarCodigo(correo, codigo);
-    onEntrar(r.token, r.usuario, "Sesión iniciada con código");
+    onEntrar(r.token, r.usuario, "Sesión iniciada con código", r.nuevo);
   });
 
   const entrarConClave = () => correr(async () => {
@@ -94,7 +94,7 @@ export function LoginModal({ motivo, onClose, onEntrar }: Props) {
 
   const crearCuenta = () => correr(async () => {
     const r = await auth.registro(correo, clave);
-    onEntrar(r.token, r.usuario, "Cuenta creada, bienvenida/o a LupIA");
+    onEntrar(r.token, r.usuario, "Cuenta creada, bienvenida/o a LupIA", true);
   });
 
   const pedirReset = () => correr(async () => {

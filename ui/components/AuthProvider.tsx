@@ -2,6 +2,7 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import { LoginModal } from "./LoginModal";
 import { AlertasPanel } from "./AlertasPanel";
+import { EmpresaOnboarding } from "./EmpresaOnboarding";
 import { Usuario, guardarSesion, limpiarSesion, sesionGuardada } from "@/lib/api";
 
 type Pendiente = "alertas" | "traza" | null;
@@ -22,6 +23,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [login, setLogin] = useState(false);
   const [pendiente, setPendiente] = useState<Pendiente>(null);
   const [alertas, setAlertas] = useState(false);
+  const [onboarding, setOnboarding] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
   // Restaurar sesion guardada (JWT en localStorage)
@@ -42,15 +44,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         <LoginModal
           motivo={pendiente}
           onClose={() => { setLogin(false); setPendiente(null); }}
-          onEntrar={(token, u, m) => {
+          onEntrar={(token, u, m, nuevo) => {
             guardarSesion(token, u);
             setUsuario(u);
             setLogin(false);
             toast(m);
-            const p = pendiente; setPendiente(null); setTimeout(() => correr(p), 250);
+            const p = pendiente; setPendiente(null);
+            if (nuevo) setTimeout(() => setOnboarding(true), 300);
+            else setTimeout(() => correr(p), 250);
           }}
         />
       )}
+      {onboarding && usuario && <EmpresaOnboarding onClose={() => setOnboarding(false)} onToast={toast} />}
       {alertas && usuario && <AlertasPanel usuario={usuario} onClose={() => setAlertas(false)} onToast={toast} />}
       {msg && (
         <div style={{ position: "fixed", bottom: 24, left: "50%", transform: "translateX(-50%)", background: "#1b1a17", color: "#fffefb", padding: "13px 20px", borderRadius: 99, fontSize: 13.5, zIndex: 90, animation: "lupFade .2s ease both" }}>{msg}</div>

@@ -1,7 +1,8 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { T, fmtM } from "@/lib/theme";
-import { lupia } from "@/lib/api";
+import { PerfilEmpresa as PerfilGuardado, lupia } from "@/lib/api";
+import { useAuth } from "@/components/AuthProvider";
 
 // Convocatorias sugeridas: demo del matching (la version real cruza p6dx-8zbt con el perfil)
 const PROCESOS = [
@@ -32,14 +33,17 @@ const soloFecha = (v?: string) => (v ? v.slice(0, 10) : "—");
 const enMillones = (v?: string) => fmtM(Math.round((parseFloat(v || "0") || 0) / 1e6));
 
 export default function Page() {
+  const { auth, pedir } = useAuth();
+  const [modo, setModo] = useState<"mia" | "validar">("validar");
+  const [guardado, setGuardado] = useState<PerfilGuardado | null>(null);
   const [nit, setNit] = useState("");
   const [perfil, setPerfil] = useState<Perfil | null>(null);
   const [detalle, setDetalle] = useState<ContratoNit | null>(null);
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const buscar = async () => {
-    const limpio = nit.replace(/\D/g, "");
+  const buscar = async (valor?: string) => {
+    const limpio = (valor ?? nit).replace(/\D/g, "");
     if (!limpio || cargando) return;
     setCargando(true); setError(null); setPerfil(null);
     try {
@@ -47,13 +51,50 @@ export default function Page() {
     } catch (e: any) {
       setError(e?.status === 404
         ? "Ese NIT no registra contratos en SECOP II (procesos electrónicos, ~2018 en adelante)."
-        : "No pude consultar el NIT. ¿Está corriendo la API? datos.gov.co también puede estar intermitente.");
+        : "No pude consultar el NIT: datos.gov.co puede estar intermitente, intenta de nuevo en unos segundos.");
     }
     setCargando(false);
   };
 
+  // Perfil de empresa guardado en el onboarding: carga su NIT automaticamente
+  useEffect(() => {
+    if (!auth) return;
+    lupia.miPerfilEmpresa().then((p) => {
+      setGuardado(p);
+      if (p.tiene_empresa && p.nit) {
+        setModo("mia");
+        setNit(p.nit);
+        buscar(p.nit);
+      }
+    }).catch(() => setGuardado(null));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [auth]);
+
   const card: React.CSSProperties = { background: T.surface, border: `1px solid ${T.line}`, borderRadius: 12 };
   const reg = perfil?.registro_proveedor?.[0];
+
+  if (!auth) {
+    return (
+      <main style={{ maxWidth: 640, margin: "0 auto", padding: "70px 28px", textAlign: "center" }}>
+        <div style={{ display: "flex", justifyContent: "center", marginBottom: 16 }}>
+          <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke={T.ink} strokeWidth="1.8">
+            <rect x="4" y="10" width="16" height="11" rx="2" />
+            <path d="M8 10V7a4 4 0 0 1 8 0v3" />
+            <circle cx="12" cy="15.5" r="1.6" fill={T.ink} stroke="none" />
+          </svg>
+        </div>
+        <h1 style={{ fontSize: 28, letterSpacing: "-0.025em", margin: "0 0 10px", fontWeight: 700 }}>El Modo Empresa pide cuenta</h1>
+        <p style={{ margin: "0 0 22px", fontSize: 14.5, color: T.muted, lineHeight: 1.6 }}>
+          Con tu cuenta puedes mapear tu empresa (procesos ejecutados, en ejecución y convocatorias
+          que calcen con tu perfil) o simplemente validar cualquier NIT contra SECOP II.
+          El monitor ciudadano sigue siendo abierto y gratuito.
+        </p>
+        <button onClick={() => pedir(null)} style={{ border: "none", background: T.ink, color: T.surface, fontSize: 14.5, fontWeight: 600, padding: "13px 26px", borderRadius: 9, cursor: "pointer" }}>
+          Entrar o crear cuenta
+        </button>
+      </main>
+    );
+  }
 
   return (
     <main style={{ maxWidth: 1100, margin: "0 auto", padding: "36px 28px 80px" }}>
@@ -61,16 +102,40 @@ export default function Page() {
         <h1 style={{ fontSize: 30, letterSpacing: "-0.025em", margin: 0, fontWeight: 700 }}>Modo Empresa</h1>
         <span style={{ fontFamily: T.mono, fontSize: 10, background: T.ink, color: T.surface, padding: "4px 9px", borderRadius: 4 }}>PRO</span>
       </div>
-      <p style={{ margin: "0 0 26px", fontSize: 14.5, color: T.muted, lineHeight: 1.55, maxWidth: 640 }}>El mismo motor, al otro lado: escribe tu NIT y LupIA arma tu perfil real con lo que ya has ejecutado en SECOP II.</p>
+      <p style={{ margin: "0 0 20px", fontSize: 14.5, color: T.muted, lineHeight: 1.55, maxWidth: 640 }}>El mismo motor, al otro lado: LupIA arma un perfil real con lo ejecutado en SECOP II.</p>
 
-      <div style={{ ...card, padding: "20px 22px", display: "flex", gap: 14, alignItems: "center", marginBottom: 22, flexWrap: "wrap" }}>
+      <div style={{ display: "flex", background: "#eae7de", borderRadius: 9, padding: 3, width: "fit-content", marginBottom: 18 }}>
+        {([["mia", "Mi empresa"], ["validar", "Validar cualquier NIT"]] as const).map(([m, etiqueta]) => (
+          <button key={m} onClick={() => setModo(m)}
+            style={{ border: "none", background: modo === m ? T.surface : "transparent", color: modo === m ? T.ink : T.muted, fontSize: 13, fontWeight: modo === m ? 600 : 500, padding: "9px 18px", borderRadius: 6, cursor: "pointer" }}>
+            {etiqueta}
+          </button>
+        ))}
+      </div>
+
+      {modo === "mia" && !guardado?.nit && (
+        <div style={{ ...card, padding: "18px 22px", marginBottom: 18, fontSize: 13.5, color: T.muted, lineHeight: 1.6 }}>
+          Aún no has guardado el NIT de tu empresa. Escríbelo abajo y arma el perfil —
+          quedará asociado a tu cuenta{guardado?.intereses?.includes("convocatorias") ? " y usaremos tu perfil para avisarte de convocatorias que calcen" : ""}.
+        </div>
+      )}
+
+      <div style={{ ...card, padding: "20px 22px", marginBottom: 8, display: "flex", gap: 14, alignItems: "center", flexWrap: "wrap" }}>
         <div style={{ fontFamily: T.mono, fontSize: 10.5, color: T.muted }}>NIT</div>
-        <input value={nit} onChange={(e) => setNit(e.target.value)} onKeyDown={(e) => e.key === "Enter" && buscar()} placeholder="860077014 (sin dígito de verificación)"
-          style={{ fontFamily: T.mono, fontSize: 15, border: "1px solid #d8d3c7", borderRadius: 8, padding: "10px 14px", background: "#f9f8f4", minWidth: 260 }} />
-        <button onClick={buscar} disabled={cargando} style={{ border: "none", background: T.ink, color: T.surface, fontSize: 13.5, fontWeight: 600, padding: "11px 18px", borderRadius: 8, cursor: "pointer", opacity: cargando ? 0.7 : 1 }}>
-          {cargando ? "Consultando SECOP…" : "Armar mi perfil"}
+        <input value={nit} onChange={(e) => setNit(e.target.value.replace(/[^\d.-]/g, ""))} onKeyDown={(e) => e.key === "Enter" && buscar()} placeholder="Ej: 860077014" inputMode="numeric"
+          style={{ fontFamily: T.mono, fontSize: 15, border: "1px solid #d8d3c7", borderRadius: 8, padding: "10px 14px", background: "#f9f8f4", minWidth: 240 }} />
+        <button onClick={() => buscar()} disabled={cargando} style={{ border: "none", background: T.ink, color: T.surface, fontSize: 13.5, fontWeight: 600, padding: "11px 18px", borderRadius: 8, cursor: "pointer", opacity: cargando ? 0.7 : 1 }}>
+          {cargando ? "Consultando SECOP…" : modo === "mia" ? "Armar mi perfil" : "Consultar historial"}
         </button>
         {error && <div style={{ fontSize: 13, color: T.alto }}>{error}</div>}
+      </div>
+      <div style={{ display: "flex", gap: 10, fontSize: 12.5, color: T.faint, lineHeight: 1.6, margin: "0 4px 22px", maxWidth: 760 }}>
+        <span style={{ fontFamily: T.mono, fontSize: 9.5, letterSpacing: "0.06em", color: T.muted, border: `1px solid ${T.line}`, borderRadius: 4, padding: "2px 6px", height: "fit-content", whiteSpace: "nowrap" }}>CÓMO</span>
+        <span>
+          Escribe solo los números del NIT, <strong>sin el dígito de verificación</strong> (si tu NIT es
+          860.077.014-9, escribe 860077014). Consultamos el historial completo de esa empresa en
+          SECOP II: contratos, entidades, valores y fechas. Cubre procesos electrónicos (~2018 en adelante).
+        </span>
       </div>
 
       {perfil && (

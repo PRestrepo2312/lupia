@@ -78,6 +78,9 @@ export const auth = {
     api("/auth/google", { method: "POST", body: JSON.stringify({ credential }) }),
 };
 
+export interface Suscripcion { id: number; departamento: string | null; municipio: string | null }
+export interface PerfilEmpresa { tiene_empresa: boolean; nit: string | null; intereses: string[] }
+
 export const lupia = {
   salud: () => api<{ ok: boolean; contratos: number; alertas: number; base: string }>("/salud"),
   resumen: (soloEmergencia = false) =>
@@ -86,6 +89,11 @@ export const lupia = {
   proveedor: (nit: string) => api(`/proveedores/${encodeURIComponent(nit)}`),
   suscribir: (correo: string, departamento?: string | null) =>
     api("/suscripciones", { method: "POST", body: JSON.stringify({ correo, departamento }) }),
+  misSuscripciones: () => api<Suscripcion[]>("/suscripciones/mias"),
+  borrarSuscripcion: (id: number) => api(`/suscripciones/${id}`, { method: "DELETE" }),
+  guardarPerfilEmpresa: (p: PerfilEmpresa) =>
+    api("/empresa/perfil", { method: "POST", body: JSON.stringify(p) }),
+  miPerfilEmpresa: () => api<PerfilEmpresa>("/empresa/perfil"),
   chat: (pregunta: string) =>
     api<{ respuesta: string }>("/ia/chat", { method: "POST", body: JSON.stringify({ pregunta }) }),
 };

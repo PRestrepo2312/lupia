@@ -97,6 +97,14 @@ CREATE TABLE IF NOT EXISTS codigos_otp (
     creado_en TEXT DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS ix_otp_correo ON codigos_otp(correo, proposito);
+CREATE TABLE IF NOT EXISTS empresa_perfil (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    correo TEXT NOT NULL UNIQUE,
+    tiene_empresa INTEGER DEFAULT 0,
+    nit TEXT,
+    intereses TEXT,
+    creado_en TEXT DEFAULT (datetime('now'))
+);
 """
 
 SCHEMA_PG = _TABLA_CONTRATOS + """
@@ -137,6 +145,14 @@ CREATE TABLE IF NOT EXISTS codigos_otp (
     creado_en TIMESTAMPTZ DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS ix_otp_correo ON codigos_otp(correo, proposito);
+CREATE TABLE IF NOT EXISTS empresa_perfil (
+    id SERIAL PRIMARY KEY,
+    correo TEXT NOT NULL UNIQUE,
+    tiene_empresa INTEGER DEFAULT 0,
+    nit TEXT,
+    intereses TEXT,
+    creado_en TIMESTAMPTZ DEFAULT now()
+);
 """
 
 CAMPOS = [

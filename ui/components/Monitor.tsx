@@ -1,10 +1,15 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
+import dynamic from "next/dynamic";
 import { Contrato } from "@/lib/types";
 import { getContratos, lupia } from "@/lib/api";
 import { CATEGORIAS, DEPARTAMENTOS, GLIFOS, EVENTOS } from "@/lib/data";
 import { T, fmtM, riesgo, nivelLabel } from "@/lib/theme";
 import { ContractDetail } from "./ContractDetail";
+
+const MapaClient = dynamic(() => import("./MapaClient").then((m) => m.MapaClient), { ssr: false });
+
+const POR_PAGINA = 10;
 
 interface Salud { contratos: number; alertas: number }
 
@@ -17,6 +22,10 @@ export function Monitor() {
   const [dep, setDep] = useState<string>("Todos");
   const [evento, setEvento] = useState<string>("Todos los eventos");
   const [sel, setSel] = useState<string | null>(null);
+  const [vista, setVista] = useState<"tabla" | "mapa">("tabla");
+  const [pagina, setPagina] = useState(1);
+
+  useEffect(() => { setPagina(1); }, [cat, dep, evento]);
 
   useEffect(() => {
     getContratos().then(setData);
@@ -33,11 +42,8 @@ export function Monitor() {
       && (cat !== "Emergencias y desastres" || evento === "Todos los eventos" || c.evento === evento))
     .sort((a, b) => b.score - a.score), [data, cat, dep, evento]);
 
-  const conDatos = useMemo(() => {
-    const m: Record<string, number> = {};
-    data.filter((c) => cat === "Todas" || c.cat === cat).forEach((c) => { m[c.dept] = (m[c.dept] || 0) + 1; });
-    return m;
-  }, [data, cat]);
+  const totalPaginas = Math.max(1, Math.ceil(visibles.length / POR_PAGINA));
+  const paginados = visibles.slice((pagina - 1) * POR_PAGINA, pagina * POR_PAGINA);
 
   const seleccionado = data.find((c) => c.id === sel);
   if (seleccionado) return <ContractDetail c={seleccionado} onBack={() => setSel(null)} />;
@@ -59,7 +65,7 @@ export function Monitor() {
           <h1 style={{ fontSize: 38, lineHeight: 1.1, letterSpacing: "-0.025em", margin: "0 0 10px", fontWeight: 700 }}>La plata pública, leída contrato por contrato.</h1>
           <p style={{ margin: 0, fontSize: 15, lineHeight: 1.55, color: T.muted }}>LupIA lee SECOP II por categoría en los 33 departamentos. El foco se mueve con la agenda del país; hoy está en la reconstrucción del sismo.</p>
         </div>
-        <div style={{ fontFamily: T.mono, fontSize: 11, color: T.muted, textAlign: "right", lineHeight: 1.7 }}>{salud ? `${salud.contratos.toLocaleString("es-CO")} contratos en cache` : "Modo demo · sin backend"}<br />Fuente: SECOP II · datos.gov.co</div>
+        <div style={{ fontFamily: T.mono, fontSize: 11, color: T.muted, textAlign: "right", lineHeight: 1.7 }}>{salud ? "● Sincronizado con SECOP II" : "Vista de ejemplo · sin conexión"}<br />Fuente oficial: datos.gov.co</div>
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 1, background: T.line, border: `1px solid ${T.line}`, borderRadius: 12, overflow: "hidden", marginBottom: 30 }}>
@@ -72,25 +78,39 @@ export function Monitor() {
         ))}
       </div>
 
-      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 12 }}>
-        {["Todas", ...CATEGORIAS].map((c) => {
-          const on = cat === c;
-          const lote = c === "Todas" ? data : data.filter((x) => x.cat === c);
-          return (
-            <button key={c} onClick={() => { setCat(c); if (c !== "Emergencias y desastres") setEvento("Todos los eventos"); }}
-              style={{ border: `1px solid ${on ? T.ink : T.line}`, background: on ? T.ink : T.surface, color: on ? T.surface : T.ink, padding: "11px 15px 11px 12px", borderRadius: 12, cursor: "pointer", display: "flex", alignItems: "center", gap: 11, textAlign: "left" }}>
-              <span style={{ width: 30, height: 30, flex: "none", borderRadius: 9, background: on ? "rgba(245,244,239,.16)" : "#f0ece2", color: on ? T.surface : T.ink2, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14 }}>{GLIFOS[c] ?? "◇"}</span>
-              <span style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-                <span style={{ fontSize: 13.5, fontWeight: 600 }}>{c === "Todas" ? "Todas las categorías" : c}</span>
-                <span style={{ fontFamily: T.mono, fontSize: 9.5, opacity: .72 }}>{lote.length} contratos · {lote.filter((x) => x.score >= 40).length} con señales</span>
-              </span>
+      {/* Barra de control compacta: vista + categoria + territorio en una sola linea */}
+      <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginBottom: 14 }}>
+        <div style={{ display: "flex", background: "#eae7de", borderRadius: 9, padding: 3 }}>
+          {(["tabla", "mapa"] as const).map((v) => (
+            <button key={v} onClick={() => setVista(v)}
+              style={{ border: "none", background: vista === v ? T.surface : "transparent", color: vista === v ? T.ink : T.muted, fontSize: 13, fontWeight: vista === v ? 600 : 500, padding: "8px 16px", borderRadius: 6, cursor: "pointer" }}>
+              {v === "tabla" ? "▤ Tabla" : "◎ Mapa"}
             </button>
-          );
-        })}
+          ))}
+        </div>
+        <select value={cat} onChange={(e) => { setCat(e.target.value); if (e.target.value !== "Emergencias y desastres") setEvento("Todos los eventos"); }}
+          style={{ fontSize: 13, color: T.ink2, border: "1px solid #d8d3c7", background: T.surface, borderRadius: 99, padding: "8px 12px", cursor: "pointer", maxWidth: 240 }}>
+          {["Todas", ...CATEGORIAS].map((c) => {
+            const lote = c === "Todas" ? data : data.filter((x) => x.cat === c);
+            return <option key={c} value={c}>{GLIFOS[c] ?? "◇"} {c === "Todas" ? "Todas las categorías" : c} ({lote.length})</option>;
+          })}
+        </select>
+        <select value={dep} onChange={(e) => setDep(e.target.value)}
+          style={{ fontSize: 13, color: T.ink2, border: "1px solid #d8d3c7", background: T.surface, borderRadius: 99, padding: "8px 12px", cursor: "pointer", maxWidth: 240 }}>
+          {["Todos", ...DEPARTAMENTOS].map((d) => {
+            const n = d === "Todos" ? data.length : data.filter((c) => c.dept === d).length;
+            return <option key={d} value={d}>{d === "Todos" ? "Todos los departamentos" : d}{n ? ` (${n})` : ""}</option>;
+          })}
+        </select>
+        {vista === "tabla" && (
+          <span style={{ fontFamily: T.mono, fontSize: 11, color: T.muted, marginLeft: "auto" }}>
+            {visibles.length} señales · pág. {pagina}/{totalPaginas}
+          </span>
+        )}
       </div>
 
-      {cat === "Emergencias y desastres" && (
-        <div style={{ display: "flex", gap: 7, flexWrap: "wrap", alignItems: "center", marginBottom: 10 }}>
+      {cat === "Emergencias y desastres" && vista === "tabla" && (
+        <div style={{ display: "flex", gap: 7, flexWrap: "wrap", alignItems: "center", marginBottom: 14 }}>
           <span style={{ fontFamily: T.mono, fontSize: 10, color: T.muted, marginRight: 4 }}>EVENTO</span>
           {["Todos los eventos", ...EVENTOS].map((e) => {
             const on = evento === e;
@@ -99,32 +119,20 @@ export function Monitor() {
         </div>
       )}
 
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 18 }}>
-        <span style={{ fontFamily: T.mono, fontSize: 10.5, color: T.muted, minWidth: 64 }}>TERRITORIO</span>
-        <select value={dep} onChange={(e) => setDep(e.target.value)} style={{ fontSize: 13, color: T.ink2, border: "1px solid #d8d3c7", background: T.surface, borderRadius: 99, padding: "7px 12px", cursor: "pointer" }}>
-          {["Todos", ...DEPARTAMENTOS].map((d) => <option key={d} value={d}>{d === "Todos" ? "Todos los departamentos" : d}</option>)}
-        </select>
-        <span style={{ fontFamily: T.mono, fontSize: 10, color: T.faint, margin: "0 4px" }}>CON DATOS HOY</span>
-        {Object.keys(conDatos).sort().map((d) => {
-          const on = dep === d;
-          const lote = data.filter((c) => c.dept === d);
-          const peor = lote.some((c) => c.score >= 70) ? T.alto : lote.some((c) => c.score >= 40) ? T.medio : T.bajo;
-          return (
-            <button key={d} onClick={() => setDep(on ? "Todos" : d)} style={{ border: `1px solid ${on ? T.ink : "#d8d3c7"}`, background: on ? T.ink : T.surface, color: on ? T.surface : T.ink2, fontSize: 13, fontWeight: 500, padding: "7px 13px", borderRadius: 99, cursor: "pointer", display: "flex", alignItems: "center", gap: 7 }}>
-              <i style={{ width: 8, height: 8, borderRadius: "50%", background: peor }} />{d} · {conDatos[d]}
-            </button>
-          );
-        })}
-      </div>
+      {vista === "mapa" && (
+        <div style={{ margin: "0 -28px" }}>
+          <MapaClient />
+        </div>
+      )}
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      <div style={{ display: vista === "tabla" ? "flex" : "none", flexDirection: "column", gap: 12 }}>
         {visibles.length === 0 && (
           <div style={{ background: T.surface, border: "1px dashed #d8d3c7", borderRadius: 12, padding: "28px 24px", textAlign: "center" }}>
             <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 6 }}>Sin contratos publicados con estos filtros</div>
             <div style={{ fontSize: 13.5, color: T.muted, lineHeight: 1.55, maxWidth: 460, margin: "0 auto" }}>LupIA cubre los 33 departamentos. Que un territorio no tenga contratos también es un hallazgo: significa que aún no publica en SECOP II.</div>
           </div>
         )}
-        {visibles.map((c) => {
+        {paginados.map((c) => {
           const color = riesgo(c.score);
           return (
             <div key={c.id} onClick={() => setSel(c.id)} className="lup-card" style={{ background: T.surface, border: `1px solid ${T.line}`, borderRadius: 12, padding: "20px 22px", display: "grid", gridTemplateColumns: "96px 1fr 210px", gap: 24, cursor: "pointer", animation: "lupFade .3s ease both" }}>
@@ -160,6 +168,16 @@ export function Monitor() {
           );
         })}
       </div>
+
+      {vista === "tabla" && totalPaginas > 1 && (
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 14, marginTop: 20 }}>
+          <button onClick={() => setPagina((p) => Math.max(1, p - 1))} disabled={pagina === 1}
+            style={{ border: "1px solid #d8d3c7", background: T.surface, color: pagina === 1 ? T.faint : T.ink, fontSize: 13, fontWeight: 600, padding: "9px 16px", borderRadius: 9, cursor: pagina === 1 ? "default" : "pointer" }}>← Anterior</button>
+          <span style={{ fontFamily: T.mono, fontSize: 12, color: T.muted }}>página {pagina} de {totalPaginas}</span>
+          <button onClick={() => setPagina((p) => Math.min(totalPaginas, p + 1))} disabled={pagina === totalPaginas}
+            style={{ border: "1px solid #d8d3c7", background: T.surface, color: pagina === totalPaginas ? T.faint : T.ink, fontSize: 13, fontWeight: 600, padding: "9px 16px", borderRadius: 9, cursor: pagina === totalPaginas ? "default" : "pointer" }}>Siguiente →</button>
+        </div>
+      )}
 
       <div style={{ marginTop: 28, fontSize: 12.5, lineHeight: 1.6, color: T.muted, background: T.surfaceAlt, border: `1px solid ${T.line}`, borderRadius: 10, padding: "16px 18px", maxWidth: 820 }}>
         LupIA no acusa a nadie. Señala contratos cuyas características ameritan revisión, siempre con el porqué y el enlace al documento oficial en SECOP II. {salud ? "Cifras oficiales de SECOP II (datos.gov.co), contratos firmados desde el 10 de agosto de 2026." : "Sin backend conectado: las cifras de esta vista son simuladas."}

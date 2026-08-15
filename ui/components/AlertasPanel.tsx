@@ -1,8 +1,8 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { T } from "@/lib/theme";
 import { DEPARTAMENTOS } from "@/lib/data";
-import { Usuario, lupia } from "@/lib/api";
+import { Suscripcion, Usuario, lupia } from "@/lib/api";
 
 const FOCO = ["Chocó", "Risaralda", "Quindío", "Caldas", "Valle del Cauca"];
 
@@ -13,6 +13,21 @@ export function AlertasPanel({ usuario, onClose, onToast }: Props) {
   const [todoElPais, setTodoElPais] = useState(false);
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [activas, setActivas] = useState<Suscripcion[] | null>(null);
+
+  const cargarActivas = () =>
+    lupia.misSuscripciones().then(setActivas).catch(() => setActivas([]));
+  useEffect(() => { cargarActivas(); }, []);
+
+  const desactivar = async (s: Suscripcion) => {
+    try {
+      await lupia.borrarSuscripcion(s.id);
+      onToast(`Alerta de ${s.departamento ?? "todo el país"} desactivada`);
+      cargarActivas();
+    } catch {
+      onToast("No pude desactivar la alerta");
+    }
+  };
 
   const alternar = (d: string) => {
     setTodoElPais(false);
@@ -30,7 +45,8 @@ export function AlertasPanel({ usuario, onClose, onToast }: Props) {
       onToast(todoElPais
         ? "Listo: te avisamos de señales nuevas en todo el país"
         : `Listo: te avisamos de señales nuevas en ${sel.join(", ")}`);
-      onClose();
+      setSel([]); setTodoElPais(false);
+      cargarActivas();
     } catch {
       setError("No pude guardar la suscripción. ¿Está corriendo la API?");
     }
@@ -55,6 +71,21 @@ export function AlertasPanel({ usuario, onClose, onToast }: Props) {
           <button onClick={onClose} style={{ marginLeft: "auto", border: "none", background: "none", fontSize: 18, color: T.muted, cursor: "pointer" }}>✕</button>
         </div>
         <div style={{ padding: "20px 26px" }}>
+          {activas && activas.length > 0 && (
+            <div style={{ marginBottom: 18 }}>
+              <div style={{ fontFamily: T.mono, fontSize: 10, color: T.muted, marginBottom: 8 }}>MIS ALERTAS ACTIVAS</div>
+              <div style={{ display: "flex", gap: 7, flexWrap: "wrap" }}>
+                {activas.map((s) => (
+                  <span key={s.id} style={{ display: "inline-flex", alignItems: "center", gap: 8, border: `1px solid ${T.ink}`, background: T.ink, color: T.surface, fontSize: 12.5, padding: "6px 10px 6px 13px", borderRadius: 99 }}>
+                    {s.departamento ?? "◉ Todo el país"}
+                    <button onClick={() => desactivar(s)} title="Desactivar"
+                      style={{ border: "none", background: "rgba(255,255,255,.18)", color: T.surface, width: 18, height: 18, borderRadius: "50%", cursor: "pointer", fontSize: 11, lineHeight: 1 }}>✕</button>
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+          <div style={{ fontFamily: T.mono, fontSize: 10, color: T.muted, marginBottom: 8 }}>AGREGAR NUEVAS</div>
           <button onClick={() => { setTodoElPais(!todoElPais); setSel([]); }}
             style={{ border: `1px solid ${todoElPais ? T.ink : "#d8d3c7"}`, background: todoElPais ? T.ink : T.surface, color: todoElPais ? T.surface : T.ink, fontSize: 13.5, fontWeight: 600, padding: "9px 16px", borderRadius: 99, cursor: "pointer", marginBottom: 16 }}>
             ◉ Todo el país

@@ -44,7 +44,7 @@ def html_alerta(contrato: dict, alertas: list[dict]) -> str:
     url = contrato.get("urlproceso") or "https://www.secop.gov.co"
     return f"""
     <div style="font-family:Arial,sans-serif;max-width:600px">
-      <h2 style="color:#1a1a2e">🔍 LupIA — nueva señal en {contrato.get('departamento', '')}</h2>
+      <h2 style="color:#1a1a2e">LupIA — nueva señal en {contrato.get('departamento', '')}</h2>
       <p><b>{contrato.get('nombre_entidad', '')}</b> · {contrato.get('ciudad', '')}</p>
       <p>{contrato.get('descripcion_del_proceso') or contrato.get('objeto_del_contrato', '')}</p>
       <p>Valor: <b>${(contrato.get('valor_del_contrato') or 0):,.0f}</b> ·

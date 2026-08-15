@@ -54,12 +54,13 @@ class CredencialGoogle(BaseModel):
 
 # ---------- helpers ----------
 
-def _respuesta_token(usuario) -> dict:
+def _respuesta_token(usuario, nuevo: bool = False) -> dict:
     with db.get_conn() as conn:
         auth.marcar_ingreso(conn, usuario["id"])
     return {
         "token": auth.crear_token(usuario["id"], usuario["correo"]),
         "tipo": "bearer",
+        "nuevo": nuevo,  # primera vez: el front dispara el onboarding de empresa
         "usuario": {"id": usuario["id"], "correo": usuario["correo"],
                     "nombre": usuario["nombre"]},
     }
@@ -103,7 +104,7 @@ def registro(r: Registro):
                                      "o /auth/restablecer/solicitar si olvidaste la clave.")
         usuario = auth.crear_usuario(conn, r.correo, nombre=r.nombre,
                                      hash_=auth.hash_clave(r.clave))
-    return _respuesta_token(dict(usuario))
+    return _respuesta_token(dict(usuario), nuevo=True)
 
 
 @router.post("/ingreso")
@@ -132,9 +133,10 @@ def codigo_verificar(r: VerificacionCodigo):
         raise HTTPException(401, "Codigo invalido o vencido")
     with db.get_conn() as conn:
         usuario = auth.obtener_usuario(conn, r.correo)
-        if not usuario:  # primer ingreso: el codigo valida el correo, se crea la cuenta
+        nuevo = usuario is None
+        if nuevo:  # primer ingreso: el codigo valida el correo, se crea la cuenta
             usuario = auth.crear_usuario(conn, r.correo)
-    return _respuesta_token(dict(usuario))
+    return _respuesta_token(dict(usuario), nuevo=nuevo)
 
 
 # ---------- 3. Google SSO ----------
@@ -148,13 +150,14 @@ def google(r: CredencialGoogle):
         raise HTTPException(codigo_http, str(e))
     with db.get_conn() as conn:
         usuario = auth.obtener_usuario(conn, datos["correo"])
-        if not usuario:
+        nuevo = usuario is None
+        if nuevo:
             usuario = auth.crear_usuario(conn, datos["correo"], nombre=datos["nombre"],
                                          google_sub=datos["sub"])
         elif not usuario["google_sub"]:
             conn.execute("UPDATE usuarios SET google_sub = ? WHERE id = ?",
                          (datos["sub"], usuario["id"]))
-    return _respuesta_token(dict(usuario))
+    return _respuesta_token(dict(usuario), nuevo=nuevo)
 
 
 # ---------- 4. restablecer contraseña ----------
@@ -213,7 +216,7 @@ def google_prueba():
     return HTMLResponse(f"""<!doctype html>
 <html lang="es"><head><meta charset="utf-8"><title>LupIA - prueba Google SSO</title></head>
 <body style="font-family:Arial,sans-serif;max-width:640px;margin:40px auto">
-  <h2>🔍 LupIA — prueba del ingreso con Google</h2>
+  <h2>LupIA — prueba del ingreso con Google</h2>
   <p>Haz clic en el boton. El <code>credential</code> se envia a
      <code>POST /auth/google</code> y abajo aparece la respuesta (tu JWT).</p>
   <div id="g_id_onload" data-client_id="{config.GOOGLE_CLIENT_ID}"

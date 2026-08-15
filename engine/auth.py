@@ -104,7 +104,7 @@ def generar_codigo(correo_: str, proposito: str) -> tuple[str, bool, str | None]
                   else "Codigo para restablecer tu contraseña en LupIA")
         html = f"""
         <div style="font-family:Arial,sans-serif;max-width:480px">
-          <h2 style="color:#1a1a2e">🔍 LupIA</h2>
+          <h2 style="color:#1a1a2e">LupIA</h2>
           <p>{'Usa este codigo para ingresar' if proposito == 'ingreso'
               else 'Usa este codigo para restablecer tu contraseña'}:</p>
           <p style="font-size:34px;font-weight:bold;letter-spacing:8px">{codigo}</p>

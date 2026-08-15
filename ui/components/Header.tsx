@@ -6,7 +6,7 @@ import { T } from "@/lib/theme";
 import { useAuth } from "./AuthProvider";
 import { lupia } from "@/lib/api";
 
-const LINKS = [["/", "Monitor"], ["/mapa", "Mapa"], ["/empresa", "Empresa"], ["/metodologia", "Metodología"]];
+const LINKS = [["/", "Monitor"], ["/metodologia", "Metodología"]];
 
 export function Header() {
   const path = usePathname();
@@ -44,6 +44,18 @@ export function Header() {
               <Link key={href} href={href} style={{ fontSize: 13.5, fontWeight: on ? 600 : 500, padding: "8px 14px", borderRadius: 8, color: on ? T.ink : T.muted, background: on ? "#f0ece2" : "transparent" }}>{label}</Link>
             );
           })}
+          {/* Empresa: solo con sesion (al registrarse se ofrece mapear la empresa) */}
+          {auth ? (
+            <Link href="/empresa" style={{ fontSize: 13.5, fontWeight: path === "/empresa" ? 600 : 500, padding: "8px 14px", borderRadius: 8, color: path === "/empresa" ? T.ink : T.muted, background: path === "/empresa" ? "#f0ece2" : "transparent" }}>Empresa</Link>
+          ) : (
+            <button onClick={() => pedir(null)} title="Entra para usar el Modo Empresa" style={{ border: "none", background: "transparent", fontSize: 13.5, fontWeight: 500, padding: "8px 14px", borderRadius: 8, color: T.faint, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6 }}>
+              Empresa
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4">
+                <rect x="4" y="10" width="16" height="11" rx="2" />
+                <path d="M8 10V7a4 4 0 0 1 8 0v3" />
+              </svg>
+            </button>
+          )}
         </nav>
         <button onClick={() => pedir("alertas")} style={{ border: `1px solid ${T.ink}`, background: T.ink, color: T.surface, fontSize: 13, fontWeight: 600, padding: "9px 16px", borderRadius: 8, cursor: "pointer" }}>Recibir alertas</button>
         {auth && usuario ? (
