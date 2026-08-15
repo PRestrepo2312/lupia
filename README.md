@@ -79,4 +79,4 @@ porqué y el link al contrato original en SECOP para que cualquiera verifique.
 
 ## Equipo
 
-_[nombres]_ — hecho con Cursor + Claude durante la Hackathon CTW 2026.
+**SMR Devs** — hecho durante la Hackathon CTW 2026 (track Tecnología para la Transparencia).
