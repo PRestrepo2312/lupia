@@ -1,0 +1,42 @@
+name: Desplegar API a ECS
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "api/**"
+      - "engine/**"
+      - "prompts/**"
+      - "data/seed/**"
+      - "scripts/**"
+      - "requirements.txt"
+      - "Dockerfile"
+  workflow_dispatch: {}
+
+jobs:
+  desplegar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Credenciales AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Login a ECR
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Construir y subir imagen
+        run: |
+          IMAGEN=${{ steps.ecr.outputs.registry }}/lupia-api:latest
+          docker build -t "$IMAGEN" .
+          docker push "$IMAGEN"
+
+      - name: Redesplegar servicio ECS
+        run: |
+          aws ecs update-service --cluster lupia --service lupia-api \
+            --force-new-deployment --query "service.deployments[0].id" --output text
