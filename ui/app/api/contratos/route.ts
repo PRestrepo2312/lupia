@@ -70,15 +70,33 @@ function fmtFecha(iso: string | null): string {
 }
 
 export async function GET(req: Request) {
-  try {
-    // Via el propio rewrite /lupia-api (la ruta al backend que ya funciona en
-    // cualquier entorno), en vez de depender de env vars en el runtime SSR.
-    const base = new URL(req.url).origin;
-    const r = await fetch(`${base}/lupia-api/alertas?limite=300`, { cache: "no-store" });
-    if (!r.ok) throw new Error(`backend ${r.status}`);
-    const alertas = (await r.json()) as AlertaApi[];
-    if (!alertas.length) throw new Error("sin alertas");
+  const errores: string[] = [];
+  const debug = new URL(req.url).searchParams.has("debug");
+  // Dos caminos al backend: URL directa (env inlineada en build) y el propio rewrite
+  const bases = [
+    process.env.LUPIA_API_URL,
+    `${new URL(req.url).origin}/lupia-api`,
+  ].filter(Boolean) as string[];
 
+  let alertas: AlertaApi[] | null = null;
+  for (const b of bases) {
+    try {
+      const r = await fetch(`${b}/alertas?limite=300`, { cache: "no-store" });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const datos = (await r.json()) as AlertaApi[];
+      if (!datos.length) throw new Error("0 alertas");
+      alertas = datos;
+      break;
+    } catch (e) {
+      errores.push(`${b} -> ${String(e)}`);
+    }
+  }
+  if (!alertas) {
+    if (debug) return NextResponse.json({ errores, env: process.env.LUPIA_API_URL ?? null });
+    return NextResponse.json(CONTRATOS);
+  }
+
+  try {
     const porContrato = new Map<string, AlertaApi[]>();
     for (const a of alertas) {
       const lote = porContrato.get(a.id_contrato) ?? [];
@@ -132,8 +150,9 @@ export async function GET(req: Request) {
       });
     }
     return NextResponse.json(contratos.sort((a, b) => b.score - a.score || b.valor - a.valor));
-  } catch {
-    // Sin backend: el monitor sigue vivo con la muestra simulada (modo demo)
+  } catch (e) {
+    // Error mapeando (no de conexion): visible con ?debug
+    if (debug) return NextResponse.json({ errores: [...errores, `mapeo -> ${String(e)}`] });
     return NextResponse.json(CONTRATOS);
   }
 }
