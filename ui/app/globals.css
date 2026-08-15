@@ -1,0 +1,15 @@
+@import url('https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap');
+
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{background:#f5f4ef;color:#1b1a17;font-family:Archivo,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased}
+a{color:#2f5d78;text-decoration:none}
+a:hover{color:#1b3d52}
+button{font-family:inherit}
+select,input{font-family:inherit}
+@keyframes lupFade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+@keyframes lupPop{from{opacity:0;transform:translateY(14px) scale(.97)}to{opacity:1;transform:none}}
+@keyframes lupBlink{0%,92%,100%{transform:scaleY(1)}96%{transform:scaleY(.15)}}
+.lup-card:hover{border-color:#1b1a17 !important}
+.lup-scroll::-webkit-scrollbar{width:8px}
+.lup-scroll::-webkit-scrollbar-thumb{background:#d8d3c7;border-radius:4px}

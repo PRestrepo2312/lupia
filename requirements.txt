@@ -1,0 +1,11 @@
+fastapi
+uvicorn[standard]
+requests
+python-dotenv
+pandas
+anthropic
+boto3
+streamlit
+psycopg2-binary
+pyjwt
+email-validator

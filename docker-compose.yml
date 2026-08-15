@@ -1,0 +1,48 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: lupia
+      POSTGRES_PASSWORD: lupia
+      POSTGRES_DB: lupia
+    ports:
+      # 5433 afuera para no chocar con un Postgres nativo en la maquina
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lupia -d lupia"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  api:
+    build: .
+    command: uvicorn api.main:app --host 0.0.0.0 --port 8010
+    ports:
+      - "8010:8010"
+    environment:
+      # Sin .env el repo arranca igual: modo demo con seed + Postgres del compose
+      MODO_DEMO: ${MODO_DEMO:-1}
+      DATABASE_URL: ${DATABASE_URL:-postgresql://lupia:lupia@db:5432/lupia}
+    env_file:
+      - path: .env
+        required: false
+    depends_on:
+      db:
+        condition: service_healthy
+
+  ui:
+    build:
+      context: ./ui
+      args:
+        NEXT_PUBLIC_GOOGLE_CLIENT_ID: ${NEXT_PUBLIC_GOOGLE_CLIENT_ID:-}
+    ports:
+      - "3000:3000"
+    environment:
+      LUPIA_API_URL: http://api:8010
+    depends_on:
+      - api
+
+volumes:
+  pgdata:
