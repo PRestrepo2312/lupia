@@ -8,6 +8,8 @@ applications:
             - npm ci
         build:
           commands:
+            # Garantiza que el runtime SSR vea las vars (y sin espacios accidentales)
+            - env | grep -E "^(LUPIA_API_URL|NEXT_PUBLIC_)" | sed "s/ *$//" >> .env.production || true
             - npm run build
       artifacts:
         baseDirectory: .next
