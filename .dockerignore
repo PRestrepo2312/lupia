@@ -1,0 +1,10 @@
+# Nunca hornear secretos ni datos locales en la imagen
+.env
+*.db
+*.sqlite3
+.git/
+ui/
+__pycache__/
+*.pyc
+.venv/
+LUPIA_PLAYBOOK*.md

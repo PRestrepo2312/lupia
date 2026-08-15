@@ -49,7 +49,67 @@ def get_cliente():
     return AnthropicBedrockMantle(aws_region=config.AWS_REGION), config.BEDROCK_MODEL_ID
 
 
+def _es_nova() -> bool:
+    return config.IA_PROVEEDOR == "nova" and not config.MODO_DEMO
+
+
+def _nova_texto(system: str, usuario: str, max_tokens: int = 1024) -> str | None:
+    """Amazon Nova via la API Converse de Bedrock (disponible sin autorizacion previa)."""
+    import boto3
+    rt = boto3.client("bedrock-runtime", region_name=config.AWS_REGION)
+    r = rt.converse(
+        modelId=config.NOVA_MODEL_ID,
+        system=[{"text": system}],
+        messages=[{"role": "user", "content": [{"text": usuario}]}],
+        inferenceConfig={"maxTokens": max_tokens, "temperature": 0.2},
+    )
+    return r["output"]["message"]["content"][0]["text"]
+
+
+def _extraer_json(texto: str | None) -> dict | None:
+    """Nova no garantiza JSON puro: intenta parseo directo y luego el primer {...}."""
+    import re
+    if not texto:
+        return None
+    try:
+        return json.loads(texto)
+    except json.JSONDecodeError:
+        m = re.search(r"\{.*\}", texto, re.DOTALL)
+        try:
+            return json.loads(m.group(0)) if m else None
+        except json.JSONDecodeError:
+            return None
+
+
+def _ejemplo_de(esquema: dict) -> dict:
+    """Instancia de ejemplo a partir del esquema (los modelos chicos siguen mejor
+    un ejemplo concreto que un JSON Schema, que tienden a repetir)."""
+    ejemplo = {}
+    for llave, prop in esquema.get("properties", {}).items():
+        tipo = prop.get("type")
+        tipos = tipo if isinstance(tipo, list) else [tipo]
+        if "integer" in tipos or "number" in tipos:
+            ejemplo[llave] = 0
+        elif "boolean" in tipos:
+            ejemplo[llave] = False
+        else:
+            ejemplo[llave] = prop.get("description", "texto")
+    return ejemplo
+
+
 def _llamar_json(system: str, usuario: str, esquema: dict, max_tokens: int = 1024) -> dict | None:
+    if _es_nova():
+        system_json = (
+            f"{system}\n\nResponde UNICAMENTE con un objeto JSON con exactamente "
+            f"estas llaves y este formato (llena los VALORES para el caso que te dan, "
+            f"sin markdown ni texto adicional):\n"
+            f"{json.dumps(_ejemplo_de(esquema), ensure_ascii=False)}"
+        )
+        r = _extraer_json(_nova_texto(system_json, usuario, max_tokens))
+        # Si repitio el esquema o faltan llaves obligatorias, no sirve
+        if not r or "properties" in r or not all(k in r for k in esquema.get("required", [])):
+            return None
+        return r
     cliente, modelo = get_cliente()
     if cliente is None:
         return None
@@ -77,14 +137,16 @@ def extraer_compra(descripcion: str) -> dict | None:
 
 
 def responder_chat(pregunta: str, contexto: dict) -> str | None:
-    """Chat ciudadano: responde con Claude usando datos reales del cache como contexto."""
-    cliente, modelo = get_cliente()
-    if cliente is None:
-        return None
+    """Chat ciudadano: responde con IA usando datos reales del cache como contexto."""
     cuerpo = (
         f"CONTEXTO (datos oficiales SECOP II):\n{json.dumps(contexto, ensure_ascii=False)}\n\n"
         f"PREGUNTA DEL CIUDADANO: {pregunta}"
     )
+    if _es_nova():
+        return _nova_texto(_leer_prompt("chat"), cuerpo)
+    cliente, modelo = get_cliente()
+    if cliente is None:
+        return None
     resp = cliente.messages.create(
         model=modelo,
         max_tokens=1024,
@@ -98,8 +160,11 @@ def responder_chat(pregunta: str, contexto: dict) -> str | None:
 
 def explicar_alerta(contrato: dict, alertas: list[dict]) -> str | None:
     """Explicacion en lenguaje ciudadano de por que este contrato tiene senales."""
-    cliente, modelo = get_cliente()
-    if cliente is None:
+    contexto_nova = None
+    if _es_nova():
+        contexto_nova = True
+    cliente, modelo = (None, None) if contexto_nova else get_cliente()
+    if cliente is None and not contexto_nova:
         return None
     contexto = json.dumps(
         {

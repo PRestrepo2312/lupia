@@ -50,7 +50,10 @@ JWT_HORAS = int(os.getenv("JWT_HORAS", "168"))  # 7 dias
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "")
 
 # IA
-IA_PROVEEDOR = os.getenv("IA_PROVEEDOR", "bedrock")  # bedrock | anthropic
+# nova = Amazon Nova via Bedrock (sin autorizacion previa, ultra barato)
+# bedrock = Claude via Bedrock (requiere Model access) | anthropic = API key directa
+IA_PROVEEDOR = os.getenv("IA_PROVEEDOR", "nova")
+NOVA_MODEL_ID = os.getenv("NOVA_MODEL_ID", "us.amazon.nova-lite-v1:0")
 AWS_REGION = os.getenv("AWS_REGION", "us-east-1")
 BEDROCK_MODEL_ID = os.getenv("BEDROCK_MODEL_ID", "anthropic.claude-opus-5")
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
