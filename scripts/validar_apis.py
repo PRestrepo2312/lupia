@@ -3,7 +3,7 @@
 Verifica en orden:
   1. datos.gov.co alcanzable y datasets vivos
   2. App Token valido (si esta en el .env)
-  3. La query critica del playbook (volumen desde el sismo en los 5 departamentos)
+  3. La consulta principal (volumen de contratos desde el sismo)
   4. Brevo (API key de correos)
   5. Credenciales de IA (Bedrock / Anthropic API key)
 """

@@ -1,82 +1,101 @@
-# 🔍 LupIA
+# LupIA
 
-**La lupa ciudadana sobre la plata de la reconstrucción.**
+**Monitor ciudadano de la contratación pública con inteligencia artificial.**
 
-> 📹 Video (60s): _[pendiente — Persona 3]_ · 🌐 Demo en vivo: _[pendiente — URL EC2]_ ·
-> ▶️ Corre en 1 comando: `docker compose up`
+LupIA lee la contratación pública de Colombia en SECOP II, contrato por contrato, y señala
+lo que amerita revisión —con el porqué y el enlace al documento oficial— para que cualquier
+ciudadano, periodista o empresa entienda en qué se está gastando la plata pública.
+
+**Demo en vivo:** https://lupia.click · **API:** https://api.lupia.click/docs
+
+---
 
 ## El problema
 
-El 10 de agosto de 2026 un sismo M7.4 (epicentro San José del Palmar, Chocó) activó el
-desastre nacional y la urgencia manifiesta: la mayor ola de contratación directa —sin
-licitación— en 27 años. **A 5 días del sismo ya hay 1.736 contratos firmados por más de
-$72.000 millones COP en Chocó, Risaralda, Quindío, Caldas y Valle del Cauca**
-(fuente: SECOP II, datos.gov.co, consulta 2026-08-15). Nadie los lee en tiempo real.
+El 10 de agosto de 2026, un sismo de magnitud 7.4 activó el desastre nacional y la urgencia
+manifiesta: una ola de contratación directa, sin licitación, para la reconstrucción. Se firman
+miles de contratos en semanas y nadie los lee en tiempo real. La información es pública y
+oficial, pero está dispersa y es ilegible para el ciudadano de a pie.
 
 ## La solución
 
-LupIA **lee** con IA cada contrato de la reconstrucción en SECOP II, **detecta** señales de
-riesgo, las **explica** en lenguaje ciudadano, **avisa** por correo cuando aparece algo
-nuevo y entrega el **documento para actuar** (derecho de petición / denuncia en PDF).
+LupIA convierte el dato abierto en vigilancia útil:
 
-_[3 pantallazos: feed · detalle con IA · correo — pendiente]_
+- **Lee** cada contrato de SECOP II y le calcula un riesgo de 0 a 100.
+- **Señala** patrones que ameritan revisión (contratista nuevo, concentración de
+  adjudicaciones) siempre con la evidencia y el enlace a la fuente.
+- **Explica** en lenguaje claro y responde preguntas en un chat con IA sobre los datos reales.
+- **Profundiza**: trae los documentos del expediente desde SECOP y los analiza con IA
+  (coherencia objeto/valor, precios, inconsistencias).
+- **Avisa** por correo cuando aparece una señal nueva en los territorios que sigues.
+- **Modo Empresa**: con tu NIT arma tu perfil real en SECOP y te muestra las convocatorias
+  abiertas que calzan con tu historial.
 
-## Cómo usa IA (el núcleo)
+## Arquitectura
 
-1. **Entender** — Claude clasifica la pertinencia del objeto con la emergencia (score
-   0–100 + razón) y extrae del texto libre qué se compra y cuánto → precio unitario.
-2. **Razonar** — agente con tool `consultar_secop`: cruza historial del proveedor, precios
-   históricos por UNSPSC y concentración, y arma el score con evidencia.
-3. **Explicar y actuar** — explicación en cristiano, alerta por correo (Brevo), PDF listo
-   para radicar.
+Desplegada en AWS: front en Amplify (Next.js), API en contenedor sobre ECS Fargate detrás de
+un balanceador con WAF, base de datos PostgreSQL en RDS (privada), IA en Amazon Bedrock y
+correos por Brevo. CI/CD automático desde GitHub.
 
-Las reglas duras son guardarraíles verificables; la IA hace lo que las reglas no pueden:
-leer texto libre. Diagramas en [`docs/ARQUITECTURA.md`](docs/ARQUITECTURA.md).
+![Arquitectura AWS de LupIA](docs/Arquitectura%20AWS%20LupIA.jpeg)
 
-## Señales que detecta
+Detalle e inventario en [`docs/ARQUITECTURA.md`](docs/ARQUITECTURA.md).
 
-| Señal | Cómo |
+## Stack
+
+| Capa | Tecnología |
 |---|---|
-| ★ Objeto sin relación con la emergencia | Claude clasifica la descripción (IA) |
-| ★ Sobrecosto vs. histórico | Claude extrae cantidades → precio unitario vs. p90 UNSPSC (IA + datos) |
-| Contratista debutante | Primera aparición del NIT en SECOP + contrato alto (regla) |
-| Concentración anómala | Mismo NIT ganando con varias entidades desde el sismo (regla) |
+| Frontend | Next.js 14 (App Router) · desplegado en AWS Amplify |
+| Backend | FastAPI (Python) · JWT · contenedor en ECS Fargate |
+| Base de datos | PostgreSQL en RDS · motor dual SQLite/PostgreSQL |
+| IA | Amazon Bedrock (Amazon Nova) |
+| Datos | SECOP II vía la API SODA de datos.gov.co |
+| Correo | Brevo (API transaccional) |
+| Infra | ALB + WAF · Route 53 · ACM · ECR · CI/CD con GitHub Actions |
 
 ## Cómo correrlo
 
+Modo demo: corre con datos de muestra, sin necesidad de llaves.
+
 ```bash
-# Modo demo (sin llaves, con datos reales de muestra):
 docker compose up
-# UI: http://localhost:3000 · API: http://localhost:8010/docs
-
-# Modo completo:
-cp .env.example .env   # llenar SODA_APP_TOKEN, BREVO_API_KEY y credenciales de IA
-python scripts/validar_apis.py          # valida todas las conexiones
-MODO_DEMO=0 docker compose up
-curl -X POST localhost:8010/ingesta/terremoto   # descarga y calcula señales
-
-# Desarrollo local sin Docker:
-uvicorn api.main:app --reload --port 8010     # backend
-cd ui && npm install && npm run dev           # front en http://localhost:3000
+# Front:  http://localhost:3000
+# API:    http://localhost:8010/docs
 ```
 
-Estructura: `api/` (FastAPI + auth JWT) · `engine/` (ingesta, señales, correo, IA, dual
-SQLite/Postgres) · `ui/` (Next.js 14: monitor, mapa, empresa, chat, login) · `prompts/`
-· `data/seed/` · `scripts/` · `docs/`.
+Modo completo (datos en vivo de SECOP II, correos e IA):
 
-## Sostenibilidad (freemium)
+```bash
+cp .env.example .env          # completar SODA_APP_TOKEN, BREVO_API_KEY, credenciales de IA
+python scripts/validar_apis.py   # valida las conexiones externas
+docker compose up
+```
 
-El ciudadano **nunca** paga: monitor, chat con cupo, alertas y PDF gratis; las alertas
-vuelven a ser dato abierto y el motor es open source. Paga quien gana contratos con la
-información (Pro/Empresa: matching por NIT, precios históricos, radar) y quien vigila a
-escala (institucional / cooperación). Costos casi cero: datos gratis, LLM centavos, correos
-gratis.
+Desarrollo sin Docker:
+
+```bash
+uvicorn api.main:app --reload --port 8010        # backend
+cd ui && npm install && npm run dev              # frontend en http://localhost:3000
+```
+
+## Estructura del proyecto
+
+```
+api/        API FastAPI (endpoints, autenticación, documentación)
+engine/     Motor: ingesta, señales, proveedores, convocatorias, IA, correo, BD dual
+prompts/    Prompts de la IA
+ui/         Aplicación Next.js (monitor, mapa, empresa, alertas, chat, login)
+scripts/    Utilidades (validación de APIs, ingesta, generación de datos de demo, despliegue)
+data/seed/  Datos de muestra para el modo demo
+docs/       Arquitectura y documentación
+```
 
 ## Lenguaje responsable
 
-**LupIA no acusa.** Señala anomalías estadísticas que ameritan revisión, siempre con el
-porqué y el link al contrato original en SECOP para que cualquiera verifique.
+LupIA no acusa a nadie. Señala contratos cuyas características ameritan revisión, siempre con el
+porqué y el enlace al documento oficial en SECOP II, para que cualquiera pueda verificarlo en la
+fuente. La interpretación es del lector.
 
 ## Equipo
 
-**SMR Devs** — hecho durante la Hackathon CTW 2026 (track Tecnología para la Transparencia).
+**SMR Devs** — Hackathon CTW 2026, track de Tecnología para la Transparencia.

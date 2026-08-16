@@ -48,7 +48,7 @@ def senal_debutante(conn) -> int:
 def senal_sobrecosto(conn) -> int:
     """Senal 2: valor > p90 historico del mismo codigo UNSPSC.
 
-    Requiere la tabla precios_unspsc precargada (tarea de Persona 3).
+    Requiere la tabla precios_unspsc precargada.
     Comparacion gruesa por contrato total; refinarla a valor unitario si hay tiempo.
     """
     tiene_precios = conn.execute("SELECT COUNT(*) AS n FROM precios_unspsc").fetchone()["n"]

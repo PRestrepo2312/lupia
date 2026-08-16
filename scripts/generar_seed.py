@@ -1,7 +1,7 @@
 """Genera data/seed/ a partir del cache SQLite ya poblado.
 
-El seed permite que el repo corra con `docker compose up` SIN token ni API keys
-(rubrica "Demo funcional"). Correr despues de la ingesta real:
+El seed permite que el repo corra con `docker compose up` sin token ni API keys.
+Correr despues de la ingesta real:
 
     python scripts/generar_seed.py
 """

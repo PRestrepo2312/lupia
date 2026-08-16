@@ -2,7 +2,7 @@
 
 Plan A: Bedrock (AnthropicBedrockMantle). Plan B: API de Anthropic con API key.
 En MODO_DEMO no se llama a la IA: la UI usa las salidas cacheadas del seed.
-Los prompts viven en prompts/ (los afina Persona 3).
+Los prompts viven en prompts/.
 """
 import json
 from pathlib import Path

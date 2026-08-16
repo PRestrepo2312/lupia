@@ -1,6 +1,6 @@
 """Ingesta desde datos.gov.co hacia el cache SQLite.
 
-Dos capas (seccion 4.2 del playbook):
+Dos capas:
 - terremoto: contratos firmados desde el 10-ago en los 5 departamentos (monitor en vivo)
 - covid: urgencia manifiesta mar-jun 2020 (calibracion del motor)
 """

@@ -632,10 +632,7 @@ def enviar_convocatorias_todos(maximo: int = 20):
 
 @app.post("/alertas/enviar-correos")
 def enviar_correos(maximo: int = 10):
-    """Manda por Brevo las alertas pendientes a los suscriptores del departamento.
-
-    Este es EL momento del video: el correo llegando al celular.
-    """
+    """Envia por Brevo las alertas pendientes a los suscriptores del departamento."""
     if not config.BREVO_API_KEY:
         raise HTTPException(503, "Falta BREVO_API_KEY en el .env")
     enviados = 0

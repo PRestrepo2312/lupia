@@ -31,7 +31,7 @@ DEPARTAMENTOS_EMERGENCIA = [
 # AMBITO_INGESTA: "nacional" (todo el pais) | "emergencia" (solo los 5 departamentos)
 AMBITO_INGESTA = os.getenv("AMBITO_INGESTA", "nacional")
 
-# Ventana COVID para calibrar el motor (plan de dos capas del playbook)
+# Ventana COVID para calibrar el motor con sobrecostos ya documentados
 COVID_DESDE = "2020-03-15T00:00:00"
 COVID_HASTA = "2020-06-30T00:00:00"
 
@@ -62,6 +62,6 @@ ANTHROPIC_MODEL_ID = os.getenv("ANTHROPIC_MODEL_ID", "claude-opus-5")
 # Umbral minimo para que un contrato de un proveedor debutante genere alerta (COP)
 UMBRAL_DEBUTANTE = float(os.getenv("UMBRAL_DEBUTANTE", "50000000"))  # 50M
 
-# Modo demo: el repo corre SIN token y SIN API key usando data/seed/ (rubrica: "el MVP corre")
+# Modo demo: corre sin token ni API key usando data/seed/
 MODO_DEMO = os.getenv("MODO_DEMO", "0") == "1"
 SEED_DIR = BASE_DIR / "data" / "seed"
