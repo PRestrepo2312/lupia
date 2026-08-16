@@ -38,14 +38,20 @@ export default function Page() {
   const [convError, setConvError] = useState(false);
   const [conHistorial, setConHistorial] = useState(false);
   const [enviando, setEnviando] = useState(false);
+  const [verTodas, setVerTodas] = useState(false);
+
+  const cargarConvocatorias = (todas: boolean) => {
+    setConvocatorias(null); setConvError(false);
+    lupia.convocatorias(todas)
+      .then((r) => { setConvocatorias(r.convocatorias); setConHistorial(r.con_historial); })
+      .catch(() => setConvError(true));
+  };
 
   useEffect(() => {
     if (!auth) return;
-    setConvError(false);
-    lupia.convocatorias()
-      .then((r) => { setConvocatorias(r.convocatorias); setConHistorial(r.con_historial); })
-      .catch(() => setConvError(true));
-  }, [auth]);
+    cargarConvocatorias(verTodas);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [auth, verTodas]);
 
   const enviarAlCorreo = async () => {
     if (enviando) return;
@@ -291,28 +297,39 @@ export default function Page() {
         </div>
       )}
 
-      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12, flexWrap: "wrap" }}>
-        <div style={{ fontSize: 16, fontWeight: 700 }}>Convocatorias abiertas que calzan con {conHistorial ? "tu perfil" : "la reconstrucción"}</div>
-        <span style={{ fontFamily: T.mono, fontSize: 9.5, background: "#eef3f6", color: T.ia, padding: "3px 8px", borderRadius: 4 }}>MATCHING REAL · PROCESOS ABIERTOS SECOP II</span>
-        {convocatorias && convocatorias.length > 0 && (
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6, flexWrap: "wrap" }}>
+        <div style={{ fontSize: 16, fontWeight: 700 }}>{verTodas ? "Todas las convocatorias abiertas" : `Convocatorias que calzan con ${conHistorial ? "tu perfil" : "la reconstrucción"}`}</div>
+        <span style={{ fontFamily: T.mono, fontSize: 9.5, background: "#eef3f6", color: T.ia, padding: "3px 8px", borderRadius: 4 }}>PROCESOS ABIERTOS SECOP II</span>
+        {convocatorias && convocatorias.length > 0 && !verTodas && (
           <button onClick={enviarAlCorreo} disabled={enviando}
             style={{ marginLeft: "auto", border: `1px solid ${T.ink}`, background: T.surface, color: T.ink, fontSize: 12.5, fontWeight: 600, padding: "8px 14px", borderRadius: 8, cursor: "pointer", opacity: enviando ? 0.7 : 1 }}>
             {enviando ? "Enviando…" : "Enviármelas al correo"}
           </button>
         )}
       </div>
+      <div style={{ display: "flex", background: "#eae7de", borderRadius: 9, padding: 3, width: "fit-content", marginBottom: 14 }}>
+        {([[false, "Las que me calzan"], [true, "Ver todas las abiertas"]] as const).map(([v, etq]) => (
+          <button key={etq} onClick={() => setVerTodas(v)}
+            style={{ border: "none", background: verTodas === v ? T.surface : "transparent", color: verTodas === v ? T.ink : T.muted, fontSize: 12.5, fontWeight: verTodas === v ? 600 : 500, padding: "8px 14px", borderRadius: 6, cursor: "pointer" }}>
+            {etq}
+          </button>
+        ))}
+      </div>
       {convocatorias === null && !convError && (
         <div style={{ ...card, padding: "22px", fontSize: 13.5, color: T.muted }}>Cruzando tu perfil con los procesos abiertos de SECOP II…</div>
       )}
       {convError && (
-        <div style={{ ...card, padding: "22px", fontSize: 13.5, color: T.muted }}>
-          datos.gov.co no respondió al buscar procesos abiertos. Recarga en unos segundos.
+        <div style={{ ...card, padding: "20px 22px", fontSize: 13.5, color: T.muted, lineHeight: 1.6, display: "flex", gap: 14, alignItems: "center", flexWrap: "wrap" }}>
+          <span>datos.gov.co está intermitente en este momento. Reintenta en unos segundos.</span>
+          <button onClick={() => cargarConvocatorias(verTodas)}
+            style={{ border: `1px solid ${T.ink}`, background: T.surface, color: T.ink, fontSize: 12.5, fontWeight: 600, padding: "8px 14px", borderRadius: 8, cursor: "pointer" }}>Reintentar</button>
         </div>
       )}
-      {convocatorias && convocatorias.length === 0 && (
+      {convocatorias && convocatorias.length === 0 && !convError && (
         <div style={{ ...card, padding: "22px", fontSize: 13.5, color: T.muted, lineHeight: 1.6 }}>
-          Hoy no hay procesos abiertos que superen el umbral de afinidad con {conHistorial ? "tu historial" : "el perfil de reconstrucción"}.
-          El cruce corre sobre lo publicado en los últimos 45 días; vuelve a mirar mañana.
+          {verTodas
+            ? "No hay procesos abiertos publicados en SECOP II en los últimos 45 días. Vuelve a mirar mañana."
+            : <>No hay procesos abiertos que calcen con {conHistorial ? "tu historial" : "el perfil de reconstrucción"} por ahora. Prueba <strong>“Ver todas las abiertas”</strong> aquí arriba para explorar todo lo que hay publicado.</>}
         </div>
       )}
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>

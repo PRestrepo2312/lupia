@@ -118,8 +118,9 @@ export const lupia = {
   miPerfil: () => api<PerfilPersona>("/perfil"),
   guardarPerfil: (p: PerfilPersona) =>
     api("/perfil", { method: "POST", body: JSON.stringify(p) }),
-  convocatorias: () =>
-    api<{ nit: string | null; con_historial: boolean; convocatorias: Convocatoria[] }>("/empresa/convocatorias"),
+  convocatorias: (todas = false) =>
+    api<{ nit: string | null; con_historial: boolean; todas: boolean; convocatorias: Convocatoria[] }>(
+      `/empresa/convocatorias${todas ? "?todas=1" : ""}`),
   enviarConvocatorias: () =>
     api<{ ok: boolean; enviadas: number }>("/empresa/convocatorias/enviar", { method: "POST" }),
   chat: (pregunta: string) =>

@@ -569,14 +569,17 @@ def _nit_del_usuario(correo_usuario: str) -> str | None:
 
 
 @app.get("/empresa/convocatorias")
-def convocatorias_empresa(usuario: dict = Depends(usuario_actual)):
-    """Convocatorias abiertas (p6dx-8zbt) rankeadas por afinidad con el perfil del NIT."""
+def convocatorias_empresa(todas: bool = False, usuario: dict = Depends(usuario_actual)):
+    """Convocatorias abiertas (p6dx-8zbt) rankeadas por afinidad con el perfil del NIT.
+
+    todas=1 devuelve TODAS las abiertas recientes aunque no calcen con el perfil.
+    """
     nit = _nit_del_usuario(usuario["correo"])
     try:
-        items = convocatorias.buscar(nit)
+        items = convocatorias.buscar(nit, solo_afines=not todas)
     except Exception:
         raise HTTPException(503, "datos.gov.co no respondio, intenta en unos segundos")
-    return {"nit": nit, "con_historial": bool(nit), "convocatorias": items}
+    return {"nit": nit, "con_historial": bool(nit), "todas": todas, "convocatorias": items}
 
 
 @app.post("/empresa/convocatorias/enviar")
