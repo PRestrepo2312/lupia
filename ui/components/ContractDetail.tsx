@@ -36,30 +36,49 @@ export function ContractDetail({ c, onBack }: { c: Contrato; onBack: () => void 
   // Documentos del expediente (SECOP II, sin captcha) + analisis con IA
   const [docs, setDocs] = useState<DocumentoSecop[] | null>(null);
   const [docsError, setDocsError] = useState<string | null>(null);
+  const [sel, setSel] = useState<Set<string>>(new Set());
+  const [recomendados, setRecomendados] = useState<string[]>([]);
+  const [verDoc, setVerDoc] = useState<DocumentoSecop | null>(null);
   const [analisis, setAnalisis] = useState<AnalisisDocs | null>(null);
   const [analizando, setAnalizando] = useState(false);
   const [analisisError, setAnalisisError] = useState<string | null>(null);
 
   useEffect(() => {
-    setDocs(null); setDocsError(null); setAnalisis(null); setAnalisisError(null);
+    setDocs(null); setDocsError(null); setAnalisis(null); setAnalisisError(null); setSel(new Set());
     lupia.documentos(c.idContrato)
-      .then((r) => setDocs(r.documentos))
+      .then((r) => {
+        const orden = { alta: 0, media: 1, baja: 2 } as Record<string, number>;
+        const ordenados = [...r.documentos].sort((a, b) => (orden[a.relevancia ?? "media"] ?? 1) - (orden[b.relevancia ?? "media"] ?? 1));
+        setDocs(ordenados);
+        setRecomendados(r.recomendados);
+        setSel(new Set(r.recomendados));
+      })
       .catch((e: any) => setDocsError(e?.status === 404
         ? "Este contrato no publica documentos electrónicos en SECOP II."
         : "SECOP no respondió al buscar los documentos. Intenta de nuevo."));
   }, [c.idContrato]);
 
+  const alternarSel = (docId: string) =>
+    setSel((s) => { const n = new Set(s); n.has(docId) ? n.delete(docId) : n.add(docId); return n; });
+
   const analizarDocumentos = async () => {
-    if (analizando) return;
+    if (analizando || sel.size === 0) return;
     setAnalizando(true); setAnalisisError(null);
     try {
-      const r = await lupia.analizarDocumentos(c.idContrato);
+      const ids = Array.from(sel);
+      // si la selección es exactamente la recomendación por defecto, llama sin ids
+      // para que el backend use su cache (respuesta instantánea)
+      const esDefault = ids.length === recomendados.length && ids.every((x) => recomendados.includes(x));
+      const r = await lupia.analizarDocumentos(c.idContrato, esDefault ? undefined : ids);
       setAnalisis(r.analisis);
     } catch (e: any) {
       setAnalisisError(e?.message || "No pude analizar los documentos, intenta de nuevo.");
     }
     setAnalizando(false);
   };
+
+  const relColor = (r?: string) => (r === "alta" ? T.ia : r === "baja" ? T.faint : T.muted);
+  const relBg = (r?: string) => (r === "alta" ? "#eef3f6" : r === "baja" ? "#f4f2ec" : "#f0ece2");
 
   // Trazabilidad real del NIT (historial completo en SECOP II)
   useEffect(() => {
@@ -183,25 +202,38 @@ export function ContractDetail({ c, onBack }: { c: Contrato; onBack: () => void 
 
             {docs && docs.length > 0 && (
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                {docs.map((d) => (
-                  <div key={d.doc_id} style={{ display: "flex", alignItems: "center", gap: 12, border: `1px solid ${T.line}`, borderRadius: 9, padding: "11px 14px" }}>
-                    <span style={{ fontFamily: T.mono, fontSize: 9.5, color: T.ia, background: "#eef3f6", padding: "3px 7px", borderRadius: 4, textTransform: "uppercase", whiteSpace: "nowrap" }}>
-                      {(d.nombre.split(".").pop() || "doc").slice(0, 4)}
-                    </span>
-                    <span style={{ flex: 1, fontSize: 13.5, color: T.ink2, lineHeight: 1.35, wordBreak: "break-word" }}>{d.nombre}</span>
-                    {d.tam ? <span style={{ fontFamily: T.mono, fontSize: 11, color: T.faint, whiteSpace: "nowrap" }}>{fmtBytes(d.tam)}</span> : null}
-                    <a href={lupia.urlDescargarDoc(c.idContrato, d.doc_id)} title="Descargar este documento"
-                      style={{ border: "1px solid #d8d3c7", background: T.surface, color: T.ink, fontSize: 12, fontWeight: 600, padding: "6px 11px", borderRadius: 7, whiteSpace: "nowrap" }}>Descargar</a>
-                  </div>
-                ))}
+                <div style={{ fontSize: 11.5, color: T.faint, marginBottom: 2 }}>
+                  Marcamos los <strong style={{ color: T.ia }}>relevantes</strong> (estudios previos, cotizaciones, contrato) para el análisis. Puedes cambiar la selección; la descarga incluye todos.
+                </div>
+                {docs.map((d) => {
+                  const marcado = sel.has(d.doc_id);
+                  const esPdf = /\.pdf$/i.test(d.nombre) || d.tipo === "application/pdf";
+                  return (
+                    <div key={d.doc_id} style={{ display: "flex", alignItems: "center", gap: 11, border: `1px solid ${marcado ? T.ia : T.line}`, borderRadius: 9, padding: "10px 13px", background: marcado ? "#fbfcfd" : T.surface, opacity: d.relevancia === "baja" && !marcado ? 0.72 : 1 }}>
+                      <input type="checkbox" checked={marcado} onChange={() => alternarSel(d.doc_id)}
+                        title="Incluir en el análisis con IA" style={{ width: 15, height: 15, accentColor: T.ia, cursor: "pointer", flex: "none" }} />
+                      <span style={{ fontFamily: T.mono, fontSize: 9, color: relColor(d.relevancia), background: relBg(d.relevancia), padding: "3px 7px", borderRadius: 4, textTransform: "uppercase", whiteSpace: "nowrap", flex: "none" }}>
+                        {d.categoria ?? "Documento"}
+                      </span>
+                      <span style={{ flex: 1, fontSize: 13, color: T.ink2, lineHeight: 1.35, wordBreak: "break-word" }}>{d.nombre}</span>
+                      {d.tam ? <span style={{ fontFamily: T.mono, fontSize: 10.5, color: T.faint, whiteSpace: "nowrap", flex: "none" }}>{fmtBytes(d.tam)}</span> : null}
+                      {esPdf && (
+                        <button onClick={() => setVerDoc(d)} title="Ver el documento aquí"
+                          style={{ border: "1px solid #d8d3c7", background: T.surface, color: T.ink, fontSize: 12, fontWeight: 600, padding: "6px 11px", borderRadius: 7, whiteSpace: "nowrap", cursor: "pointer", flex: "none" }}>Ver</button>
+                      )}
+                      <a href={lupia.urlDescargarDoc(c.idContrato, d.doc_id)} title="Descargar este documento"
+                        style={{ border: "1px solid #d8d3c7", background: T.surface, color: T.ink, fontSize: 12, fontWeight: 600, padding: "6px 11px", borderRadius: 7, whiteSpace: "nowrap", flex: "none" }}>Descargar</a>
+                    </div>
+                  );
+                })}
 
                 <div style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-                  <button onClick={analizarDocumentos} disabled={analizando}
-                    style={{ border: "none", background: T.ia, color: T.surface, fontSize: 13.5, fontWeight: 600, padding: "11px 18px", borderRadius: 9, cursor: "pointer", opacity: analizando ? 0.75 : 1, display: "inline-flex", alignItems: "center", gap: 8 }}>
-                    {analizando ? "Leyendo los documentos con IA…" : analisis ? "Volver a analizar" : "Analizar documentos con IA"}
+                  <button onClick={analizarDocumentos} disabled={analizando || sel.size === 0}
+                    style={{ border: "none", background: T.ia, color: T.surface, fontSize: 13.5, fontWeight: 600, padding: "11px 18px", borderRadius: 9, cursor: sel.size === 0 ? "default" : "pointer", opacity: analizando || sel.size === 0 ? 0.6 : 1, display: "inline-flex", alignItems: "center", gap: 8 }}>
+                    {analizando ? "Leyendo los documentos con IA…" : analisis ? `Volver a analizar (${sel.size})` : `Analizar ${sel.size} documento${sel.size === 1 ? "" : "s"} con IA`}
                   </button>
-                  <span style={{ fontSize: 12, color: T.faint, maxWidth: 320 }}>
-                    La IA lee el texto, cruza objeto y valores, y busca precios inflados o inconsistencias.
+                  <span style={{ fontSize: 12, color: T.faint, maxWidth: 300 }}>
+                    La IA lee solo los marcados: cruza objeto y valores, y busca precios inflados o inconsistencias.
                   </span>
                 </div>
                 {analisisError && <div style={{ fontSize: 12.5, color: T.alto }}>{analisisError}</div>}
@@ -300,6 +332,22 @@ export function ContractDetail({ c, onBack }: { c: Contrato; onBack: () => void 
           <div style={{ fontSize: 11.5, lineHeight: 1.55, color: T.faint, padding: "0 4px" }}>Señal, no acusación. LupIA marca lo que amerita revisión con datos oficiales; la interpretación es del lector.</div>
         </div>
       </div>
+
+      {verDoc && (
+        <div onClick={() => setVerDoc(null)} style={{ position: "fixed", inset: 0, background: "rgba(27,26,23,.6)", zIndex: 65, display: "flex", flexDirection: "column", padding: "3vh 3vw" }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ background: T.surface, borderRadius: 14, overflow: "hidden", display: "flex", flexDirection: "column", width: "100%", height: "100%", margin: "auto", maxWidth: 1000 }}>
+            <div style={{ padding: "13px 20px", borderBottom: `1px solid ${T.line}`, display: "flex", alignItems: "center", gap: 12 }}>
+              <span style={{ fontFamily: T.mono, fontSize: 9, color: relColor(verDoc.relevancia), background: relBg(verDoc.relevancia), padding: "3px 7px", borderRadius: 4, textTransform: "uppercase", whiteSpace: "nowrap" }}>{verDoc.categoria ?? "Documento"}</span>
+              <span style={{ fontSize: 14, fontWeight: 600, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{verDoc.nombre}</span>
+              <a href={lupia.urlDescargarDoc(c.idContrato, verDoc.doc_id)} style={{ fontSize: 12.5, fontWeight: 600, color: T.ink, border: "1px solid #d8d3c7", borderRadius: 7, padding: "6px 12px", whiteSpace: "nowrap" }}>Descargar</a>
+              <a href={lupia.urlVerDoc(c.idContrato, verDoc.doc_id)} target="_blank" rel="noreferrer" style={{ fontSize: 12.5, fontWeight: 600, color: T.ia, whiteSpace: "nowrap" }}>Pestaña nueva ↗</a>
+              <button onClick={() => setVerDoc(null)} style={{ border: "none", background: "none", fontSize: 20, color: T.muted, cursor: "pointer", lineHeight: 1 }}>✕</button>
+            </div>
+            <iframe title={verDoc.nombre} src={lupia.urlVerDoc(c.idContrato, verDoc.doc_id)}
+              style={{ flex: 1, width: "100%", border: "none", background: "#525659" }} />
+          </div>
+        </div>
+      )}
 
       {pdf && (
         <div onClick={() => setPdf(false)} style={{ position: "fixed", inset: 0, background: "rgba(27,26,23,.45)", zIndex: 60, display: "flex", alignItems: "flex-start", justifyContent: "center", padding: 24, overflow: "auto" }}>

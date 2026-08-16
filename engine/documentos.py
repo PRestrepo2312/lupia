@@ -33,6 +33,60 @@ def _session() -> requests.Session:
     return s
 
 
+# Clasificacion de importancia por el nombre del archivo. Los nombres en SECOP son
+# muy descriptivos ("ESTUDIOS PREVIOS...", "COTIZACION...", "camara de comercio...").
+# relevancia: alta = clave para auditar precio/objeto; media = contexto legal;
+#             baja = soporte del proponente (no aporta al analisis de sobrecosto).
+_REGLAS = [
+    ("alta", "Estudio previo", ["estudio previo", "estudios previos", "analisis del sector",
+                                "analisis de sector", "estudio de mercado", "estudio del sector",
+                                "sondeo de mercado"]),
+    ("alta", "Cotizacion / oferta", ["cotizacion", "oferta economica", "propuesta economica",
+                                     "oferta tecnica y economica", "oferta mercantil"]),
+    ("alta", "Presupuesto / APU", ["presupuesto", "analisis de precios", "precios unitarios",
+                                   "apu", "presupuesto oficial"]),
+    ("alta", "Contrato / minuta", ["contrato", "minuta"]),
+    ("alta", "Pliego / invitacion", ["pliego", "invitacion", "terminos de referencia",
+                                     "terminos y condiciones", "condiciones especiales"]),
+    ("media", "Justificacion", ["justificacion", "modalidad"]),
+    ("media", "Presupuestal (CDP/RP)", ["cdp", "certificado de disponibilidad", "registro presupuestal",
+                                        "vigencia futura", "bpin", "mga"]),
+    ("media", "Acto administrativo", ["resolucion", "decreto", "acuerdo", "acta"]),
+    ("media", "Seleccion", ["informe de seleccion", "evaluacion", "adjudicacion",
+                            "designacion", "supervision"]),
+    ("baja", "Soporte del proponente", ["camara de comercio", "rut", "cedula", "antecedentes",
+                                        "poliza", "garantia", "hoja de vida", "certificacion bancaria",
+                                        "paz y salvo", "rup", "parafiscales", "seguridad social",
+                                        "certificaciones", "experiencia"]),
+]
+
+
+def _sin_tildes(t: str) -> str:
+    import unicodedata
+    return "".join(c for c in unicodedata.normalize("NFD", t or "")
+                   if unicodedata.category(c) != "Mn").lower()
+
+
+def clasificar(nombre: str) -> dict:
+    """Devuelve {relevancia, categoria} segun el nombre del documento."""
+    n = _sin_tildes(nombre)
+    for relevancia, categoria, claves in _REGLAS:
+        if any(k in n for k in claves):
+            return {"relevancia": relevancia, "categoria": categoria}
+    return {"relevancia": "media", "categoria": "Otro documento"}
+
+
+_ORDEN_RELEVANCIA = {"alta": 0, "media": 1, "baja": 2}
+
+
+def documentos_recomendados(docs: list[dict], maximo: int = 6) -> list[str]:
+    """doc_ids sugeridos para el analisis IA: prioriza alta > media, excluye baja."""
+    utiles = [d for d in docs if d.get("relevancia") != "baja"]
+    utiles.sort(key=lambda d: _ORDEN_RELEVANCIA.get(d.get("relevancia"), 1))
+    elegidos = [d["doc_id"] for d in utiles[:maximo]]
+    return elegidos or [d["doc_id"] for d in docs[:maximo]]
+
+
 def notice_uid_desde_url(url: str | None) -> str | None:
     if not url:
         return None
@@ -79,7 +133,8 @@ def listar(notice_uid: str, session: requests.Session | None = None) -> list[dic
     docs = []
     for doc_id in _ids_de_documentos(r.text):
         nombre, tipo, tam = _cabecera_documento(s, doc_id)
-        docs.append({"doc_id": doc_id, "nombre": nombre, "tipo": tipo, "tam": tam})
+        docs.append({"doc_id": doc_id, "nombre": nombre, "tipo": tipo, "tam": tam,
+                     **clasificar(nombre)})
     return docs
 
 

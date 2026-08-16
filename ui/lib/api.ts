@@ -80,7 +80,10 @@ export const auth = {
 
 export interface Suscripcion { id: number; departamento: string | null; municipio: string | null }
 export interface PerfilEmpresa { tiene_empresa: boolean; nit: string | null; intereses: string[] }
-export interface DocumentoSecop { doc_id: string; nombre: string; tipo: string; tam: number }
+export interface DocumentoSecop {
+  doc_id: string; nombre: string; tipo: string; tam: number;
+  relevancia?: "alta" | "media" | "baja"; categoria?: string;
+}
 export interface AnalisisDocs {
   resumen: string; coherencia_objeto: string; analisis_precios: string;
   inconsistencias: string; nivel_alerta: string; banderas: string[];
@@ -114,14 +117,17 @@ export const lupia = {
   chat: (pregunta: string) =>
     api<{ respuesta: string }>("/ia/chat", { method: "POST", body: JSON.stringify({ pregunta }) }),
   documentos: (id: string) =>
-    api<{ notice_uid: string | null; documentos: DocumentoSecop[]; desde_cache: boolean }>(
+    api<{ notice_uid: string | null; documentos: DocumentoSecop[]; recomendados: string[]; desde_cache: boolean }>(
       `/contratos/${encodeURIComponent(id)}/documentos`),
-  analizarDocumentos: (id: string) =>
+  analizarDocumentos: (id: string, docIds?: string[]) =>
     api<{ analisis: AnalisisDocs; desde_cache: boolean }>(
-      `/contratos/${encodeURIComponent(id)}/documentos/analizar`, { method: "POST" }),
-  // rutas directas para <a href> (descarga binaria vía el proxy, sin token)
+      `/contratos/${encodeURIComponent(id)}/documentos/analizar`,
+      { method: "POST", body: JSON.stringify(docIds ? { doc_ids: docIds } : {}) }),
+  // rutas directas para <a href> / <iframe> (binario vía el proxy, sin token)
   urlDescargarDoc: (id: string, docId: string) =>
     `/lupia-api/contratos/${encodeURIComponent(id)}/documentos/${encodeURIComponent(docId)}/descargar`,
+  urlVerDoc: (id: string, docId: string) =>
+    `/lupia-api/contratos/${encodeURIComponent(id)}/documentos/${encodeURIComponent(docId)}/ver`,
   urlExportarDocs: (id: string) =>
     `/lupia-api/contratos/${encodeURIComponent(id)}/documentos/exportar`,
 };

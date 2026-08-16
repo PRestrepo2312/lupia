@@ -174,8 +174,13 @@ def listar_documentos(id_contrato: str, refrescar: bool = False):
                 "SELECT doc_id, nombre, tipo, tam FROM documentos_cache "
                 "WHERE id_contrato = ? ORDER BY doc_id", (id_contrato,))]
             if cache:
+                # la clasificacion se deriva del nombre: se recalcula al vuelo
+                for d in cache:
+                    d.update(documentos.clasificar(d["nombre"]))
                 uid = documentos.notice_uid_desde_url(contrato.get("urlproceso"))
-                return {"notice_uid": uid, "documentos": cache, "desde_cache": True}
+                return {"notice_uid": uid, "documentos": cache,
+                        "recomendados": documentos.documentos_recomendados(cache),
+                        "desde_cache": True}
         uid = _notice_uid_de(contrato)
     try:
         docs = documentos.listar(uid)
@@ -189,7 +194,21 @@ def listar_documentos(id_contrato: str, refrescar: bool = False):
                 "nombre=excluded.nombre, tipo=excluded.tipo, tam=excluded.tam",
                 (id_contrato, uid, d["doc_id"], d["nombre"], d["tipo"], d["tam"]),
             )
-    return {"notice_uid": uid, "documentos": docs, "desde_cache": False}
+    return {"notice_uid": uid, "documentos": docs,
+            "recomendados": documentos.documentos_recomendados(docs),
+            "desde_cache": False}
+
+
+@app.get("/contratos/{id_contrato}/documentos/{doc_id}/ver")
+def ver_documento(id_contrato: str, doc_id: str):
+    """Igual que descargar pero inline: el navegador lo muestra en el visor embebido."""
+    try:
+        nombre, tipo, contenido = documentos.descargar(doc_id)
+    except Exception:
+        raise HTTPException(502, "No pude traer el documento desde SECOP")
+    cab = f"inline; filename*=UTF-8''{quote(nombre)}"
+    return Response(content=contenido, media_type=tipo or "application/pdf",
+                    headers={"Content-Disposition": cab})
 
 
 @app.get("/contratos/{id_contrato}/documentos/{doc_id}/descargar")
@@ -235,12 +254,19 @@ def exportar_documentos(id_contrato: str):
                              headers={"Content-Disposition": cab})
 
 
+class SeleccionDocs(BaseModel):
+    doc_ids: list[str] | None = None  # si viene, analiza solo esos; si no, los recomendados
+
+
 @app.post("/contratos/{id_contrato}/documentos/analizar")
-def analizar_documentos(id_contrato: str, refrescar: bool = False, maximo: int = 6):
-    """Descarga los documentos, extrae su texto y cruza objeto/valores/precios con IA."""
+def analizar_documentos(id_contrato: str, seleccion: SeleccionDocs | None = None,
+                        refrescar: bool = False, maximo: int = 6):
+    """Descarga los documentos relevantes, extrae su texto y cruza objeto/valores/precios con IA."""
+    pedidos = seleccion.doc_ids if seleccion else None
     with db.get_conn() as conn:
         contrato = _contrato_o_404(conn, id_contrato)
-        if not refrescar:
+        # cache solo cuando es el analisis por defecto (sin seleccion manual)
+        if not refrescar and not pedidos:
             fila = conn.execute(
                 "SELECT analisis FROM analisis_docs_cache WHERE id_contrato = ?",
                 (id_contrato,)).fetchone()
@@ -248,8 +274,13 @@ def analizar_documentos(id_contrato: str, refrescar: bool = False, maximo: int =
                 return {"analisis": json.loads(fila["analisis"]), "desde_cache": True}
         uid = _notice_uid_de(contrato)
     try:
-        docs = documentos.listar(uid)[:maximo]
-        docs = documentos.descargar_y_extraer(docs)
+        todos = documentos.listar(uid)
+        if pedidos:
+            objetivo = [d for d in todos if d["doc_id"] in set(pedidos)][:maximo]
+        else:
+            recomendados = set(documentos.documentos_recomendados(todos, maximo))
+            objetivo = [d for d in todos if d["doc_id"] in recomendados]
+        docs = documentos.descargar_y_extraer(objetivo)
     except Exception:
         raise HTTPException(503, "SECOP no respondio al traer los documentos")
     with db.get_conn() as conn:
@@ -268,12 +299,14 @@ def analizar_documentos(id_contrato: str, refrescar: bool = False, maximo: int =
     if analisis is None:
         raise HTTPException(503, "IA no disponible (modo demo o sin credenciales)")
     analisis["documentos_analizados"] = [d.get("nombre") for d in con_texto]
-    with db.get_conn() as conn:
-        conn.execute(
-            "INSERT INTO analisis_docs_cache (id_contrato, analisis) VALUES (?,?) "
-            "ON CONFLICT (id_contrato) DO UPDATE SET analisis=excluded.analisis",
-            (id_contrato, json.dumps(analisis, ensure_ascii=False)),
-        )
+    # solo cacheamos el analisis por defecto (el reproducible sin seleccion manual)
+    if not pedidos:
+        with db.get_conn() as conn:
+            conn.execute(
+                "INSERT INTO analisis_docs_cache (id_contrato, analisis) VALUES (?,?) "
+                "ON CONFLICT (id_contrato) DO UPDATE SET analisis=excluded.analisis",
+                (id_contrato, json.dumps(analisis, ensure_ascii=False)),
+            )
     return {"analisis": analisis, "desde_cache": False}
 
 
