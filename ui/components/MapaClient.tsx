@@ -204,7 +204,7 @@ export function MapaClient({ cat: catProp, dep: depProp, onVerAnalisis }: Props)
 
         <div>
           <div style={{ fontFamily: T.mono, fontSize: 10.5, color: T.muted, marginBottom: 10 }}>{vis.length} CONTRATOS EN VISTA · DE {data.length}</div>
-          <div className="lup-scroll" style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: elegido ? 420 : 604, overflowY: "auto", paddingRight: 4 }}>
+          <div className="lup-scroll" style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: 604, overflowY: "auto", paddingRight: 4 }}>
             {ord.map((c) => (
               <div key={c.id} onClick={() => elegir(c)} className="lup-card" style={{ background: T.surface, border: `1px solid ${sel === c.id ? T.ink : T.line}`, borderRadius: 11, padding: "12px 13px", cursor: "pointer", display: "grid", gridTemplateColumns: "34px 1fr", gap: 11 }}>
                 <div style={{ width: 34, height: 34, borderRadius: "50%", background: riesgo(c.score), color: T.surface, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: T.mono, fontSize: 12.5 }}>{c.score}</div>
@@ -216,26 +216,39 @@ export function MapaClient({ cat: catProp, dep: depProp, onVerAnalisis }: Props)
               </div>
             ))}
           </div>
-          {elegido && (
-            <div style={{ marginTop: 12, background: T.surface, border: `1px solid ${T.ink}`, borderRadius: 11, padding: "15px 16px", animation: "lupFade .25s ease both" }}>
-              <div style={{ fontFamily: T.mono, fontSize: 10, color: T.muted, marginBottom: 6 }}>{elegido.cat.toUpperCase()} · {elegido.dept.toUpperCase()} · {nivelLabel(elegido.score)}</div>
-              <div style={{ fontSize: 15.5, fontWeight: 700, lineHeight: 1.3, marginBottom: 6 }}>{elegido.objeto}</div>
-              <div style={{ fontSize: 13, color: T.muted, marginBottom: 12 }}>{fmtM(elegido.valor)} · riesgo {elegido.score}{elegido.evento ? ` · ${elegido.evento}` : ""}</div>
-              {onVerAnalisis ? (
-                <button onClick={() => onVerAnalisis(elegido.id)}
-                  style={{ width: "100%", border: "none", background: T.ia, color: T.surface, fontSize: 13.5, fontWeight: 600, padding: "11px 0", borderRadius: 8, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
-                  Analizar con IA
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M5 12h14M13 6l6 6-6 6" />
-                  </svg>
-                </button>
-              ) : (
-                <a href="/" style={{ fontSize: 13, fontWeight: 600 }}>Analizar con IA →</a>
-              )}
-            </div>
-          )}
         </div>
       </div>
+
+      {/* Hoja flotante fija: aparece al seleccionar un contrato, con CTA y cierre sin scroll */}
+      {elegido && (
+        <div style={{ position: "fixed", left: 0, right: 0, bottom: 0, zIndex: 45, display: "flex", justifyContent: "center", padding: "0 12px", pointerEvents: "none" }}>
+          <div style={{ pointerEvents: "auto", background: T.surface, border: `1px solid ${T.ink}`, borderBottom: "none", borderRadius: "16px 16px 0 0", boxShadow: "0 -10px 34px rgba(27,26,23,.22)", maxWidth: 600, width: "100%", padding: "16px 18px 18px", animation: "lupSheet .28s cubic-bezier(.2,.8,.2,1) both" }}>
+            <div style={{ display: "flex", gap: 12, alignItems: "flex-start", marginBottom: 13 }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 5 }}>
+                  <span style={{ width: 9, height: 9, borderRadius: "50%", background: riesgo(elegido.score), flex: "none" }} />
+                  <span style={{ fontFamily: T.mono, fontSize: 10, color: T.muted, letterSpacing: "0.04em" }}>{elegido.cat.toUpperCase()} · {elegido.dept.toUpperCase()} · {nivelLabel(elegido.score)}</span>
+                </div>
+                <div style={{ fontSize: 15.5, fontWeight: 700, lineHeight: 1.3, marginBottom: 5 }}>{elegido.objeto}</div>
+                <div style={{ fontSize: 13, color: T.muted }}>{fmtM(elegido.valor)} · riesgo {elegido.score}</div>
+              </div>
+              <button onClick={() => setSel(null)} title="Cerrar" aria-label="Cerrar"
+                style={{ border: "1px solid #d8d3c7", background: T.surface, color: T.muted, width: 34, height: 34, borderRadius: "50%", fontSize: 16, cursor: "pointer", flex: "none", lineHeight: 1 }}>✕</button>
+            </div>
+            {onVerAnalisis ? (
+              <button onClick={() => onVerAnalisis(elegido.id)}
+                style={{ width: "100%", border: "none", background: T.ia, color: T.surface, fontSize: 14.5, fontWeight: 700, padding: "14px 0", borderRadius: 11, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 9 }}>
+                Analizar este contrato con IA
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M5 12h14M13 6l6 6-6 6" />
+                </svg>
+              </button>
+            ) : (
+              <a href="/" style={{ fontSize: 13, fontWeight: 600 }}>Analizar con IA →</a>
+            )}
+          </div>
+        </div>
+      )}
     </main>
   );
 }

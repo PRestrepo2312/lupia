@@ -10,6 +10,7 @@ select,input{font-family:inherit}
 @keyframes lupFade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
 @keyframes lupPop{from{opacity:0;transform:translateY(14px) scale(.97)}to{opacity:1;transform:none}}
 @keyframes lupBlink{0%,92%,100%{transform:scaleY(1)}96%{transform:scaleY(.15)}}
+@keyframes lupSheet{from{transform:translateY(100%);opacity:.5}to{transform:none;opacity:1}}
 .lup-card:hover{border-color:#1b1a17 !important}
 .lup-scroll::-webkit-scrollbar{width:8px}
 .lup-scroll::-webkit-scrollbar-thumb{background:#d8d3c7;border-radius:4px}
