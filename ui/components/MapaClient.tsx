@@ -188,10 +188,10 @@ export function MapaClient({ cat: catProp, dep: depProp, onVerAnalisis }: Props)
           <div ref={wrapRef} className="lup-mapa-canvas" style={{ position: "relative", height: 640, overflow: "hidden" }}>
             <svg ref={svgRef} viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMid slice" style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }} />
             <div ref={tipRef} style={{ position: "absolute", pointerEvents: "none", opacity: 0, transition: "opacity .12s", background: T.ink, color: T.bg, padding: "9px 12px", borderRadius: 9, fontSize: 12, lineHeight: 1.45, zIndex: 6, maxWidth: 250 }} />
-            <div style={{ position: "absolute", top: 16, left: 16, zIndex: 4, background: "rgba(255,254,251,.94)", border: "1px solid #d8d3c7", borderRadius: 11, padding: "12px 15px", display: "flex", gap: 24, whiteSpace: "nowrap" }}>
-              <div><div style={{ fontFamily: T.mono, fontSize: 9, color: T.muted, marginBottom: 4 }}>EN VISTA</div><div style={{ fontSize: 20, fontWeight: 700 }}>{vis.length}</div></div>
-              <div><div style={{ fontFamily: T.mono, fontSize: 9, color: T.muted, marginBottom: 4 }}>VALOR</div><div style={{ fontSize: 20, fontWeight: 700 }}>{fmtM(vis.reduce((a, c) => a + c.valor, 0))}</div></div>
-              <div><div style={{ fontFamily: T.mono, fontSize: 9, color: T.muted, marginBottom: 4 }}>RIESGO ALTO</div><div style={{ fontSize: 20, fontWeight: 700, color: T.alto }}>{vis.filter((c) => c.score >= 70).length}</div></div>
+            <div className="lup-mapa-stats" style={{ position: "absolute", top: 16, left: 16, zIndex: 4, background: "rgba(255,254,251,.94)", border: "1px solid #d8d3c7", borderRadius: 11, padding: "12px 15px", display: "flex", gap: 24, whiteSpace: "nowrap" }}>
+              <div><div style={{ fontFamily: T.mono, fontSize: 9, color: T.muted, marginBottom: 4 }}>EN VISTA</div><div className="big" style={{ fontSize: 20, fontWeight: 700 }}>{vis.length}</div></div>
+              <div><div style={{ fontFamily: T.mono, fontSize: 9, color: T.muted, marginBottom: 4 }}>VALOR</div><div className="big" style={{ fontSize: 20, fontWeight: 700 }}>{fmtM(vis.reduce((a, c) => a + c.valor, 0))}</div></div>
+              <div><div style={{ fontFamily: T.mono, fontSize: 9, color: T.muted, marginBottom: 4 }}>RIESGO ALTO</div><div className="big" style={{ fontSize: 20, fontWeight: 700, color: T.alto }}>{vis.filter((c) => c.score >= 70).length}</div></div>
             </div>
             <div style={{ position: "absolute", top: 16, right: 16, zIndex: 4, display: "flex", flexDirection: "column", gap: 6 }}>
               <button style={btn} onClick={() => zoomBy(1.7)} title="Acercar">+</button>

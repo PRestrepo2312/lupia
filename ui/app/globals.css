@@ -24,13 +24,17 @@ select,input{font-family:inherit}
   /* Login: colapsa a una columna y oculta el panel lateral ya en tablet */
   .lup-login{grid-template-columns:1fr !important;max-width:440px !important}
   .lup-login-aside{display:none !important}
-  /* Mapa: apila mapa arriba y lista abajo, sin desbordar el ancho */
+  /* Mapa: apila mapa arriba y lista abajo, sin desbordar el ancho.
+     aspect-ratio = ratio del viewBox del SVG, así el país se ve completo sin recorte */
   .lup-mapa-grid{grid-template-columns:1fr !important}
-  .lup-mapa-canvas{height:440px !important}
+  .lup-mapa-canvas{height:auto !important;aspect-ratio:860/640;background:#dde3e5}
   .lup-mapa-wrap{margin:0 !important}
+  .lup-mapa-stats{gap:14px !important;padding:9px 12px !important}
+  .lup-mapa-stats .big{font-size:16px !important}
   /* Metodología */
   .metodo-capas{grid-template-columns:1fr !important}
   .metodo-cierre{grid-template-columns:1fr !important}
+  .metodo-escala{grid-template-columns:1fr !important}
   .metodo-senal{grid-template-columns:1fr !important;gap:5px !important;align-items:start !important}
   .metodo-tipo{text-align:left !important}
 }
@@ -45,6 +49,8 @@ select,input{font-family:inherit}
   .lup-header-nav{order:3;width:100%;justify-content:flex-start;margin-left:0 !important}
   .lup-empresa-kpis{grid-template-columns:1fr !important}
   .lup-detalle-meta{grid-template-columns:repeat(2,1fr) !important}
-  .lup-mapa-canvas{height:360px !important}
   main{padding-left:16px !important;padding-right:16px !important}
+  /* Modales usan casi todo el ancho en móvil */
+  .lup-modal-ov{padding:12px !important}
+  .lup-valores-3{grid-template-columns:repeat(2,1fr) !important}
 }

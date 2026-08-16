@@ -45,7 +45,7 @@ export function EmpresaOnboarding({ onClose, onToast }: Props) {
   const secundario: React.CSSProperties = { border: "1px solid #d8d3c7", background: T.surface, color: T.ink, fontSize: 14, fontWeight: 600, padding: 13, borderRadius: 9, cursor: "pointer", width: "100%" };
 
   return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(27,26,23,.5)", zIndex: 75, display: "flex", alignItems: "flex-start", justifyContent: "center", padding: 24, overflow: "auto" }}>
+    <div className="lup-modal-ov" style={{ position: "fixed", inset: 0, background: "rgba(27,26,23,.5)", zIndex: 75, display: "flex", alignItems: "flex-start", justifyContent: "center", padding: 24, overflow: "auto" }}>
       <div style={{ background: T.bg, borderRadius: 16, maxWidth: 520, width: "100%", margin: "auto", overflow: "hidden", animation: "lupFade .2s ease both" }}>
         <div style={{ padding: "20px 26px", borderBottom: `1px solid ${T.line}`, display: "flex", alignItems: "center" }}>
           <div style={{ fontSize: 17, fontWeight: 700 }}>Bienvenida/o a LupIA</div>

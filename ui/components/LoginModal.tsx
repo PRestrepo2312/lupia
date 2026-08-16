@@ -121,7 +121,7 @@ export function LoginModal({ motivo, onClose, onEntrar }: Props) {
   );
 
   return (
-    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(27,26,23,.5)", zIndex: 70, display: "flex", alignItems: "flex-start", justifyContent: "center", padding: 24, overflow: "auto" }}>
+    <div onClick={onClose} className="lup-modal-ov" style={{ position: "fixed", inset: 0, background: "rgba(27,26,23,.5)", zIndex: 70, display: "flex", alignItems: "flex-start", justifyContent: "center", padding: 24, overflow: "auto" }}>
       <div onClick={(e) => e.stopPropagation()} className="lup-login" style={{ background: T.bg, borderRadius: 16, overflow: "hidden", maxWidth: 840, width: "100%", margin: "auto", display: "grid", gridTemplateColumns: "1fr 1fr", animation: "lupFade .2s ease both" }}>
         <div className="lup-login-aside" style={{ background: T.ink, color: T.bg, padding: 32, display: "flex", flexDirection: "column", justifyContent: "space-between", gap: 26 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 11 }}>

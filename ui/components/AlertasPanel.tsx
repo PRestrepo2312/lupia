@@ -83,7 +83,7 @@ export function AlertasPanel({ usuario, onClose, onToast }: Props) {
   const tabs: [Tab, string][] = [["mias", "Mis alertas"], ["nuevas", "Agregar"], ["oportunidades", "Oportunidades"]];
 
   return (
-    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(27,26,23,.5)", zIndex: 70, display: "flex", alignItems: "flex-start", justifyContent: "center", padding: 24, overflow: "auto" }}>
+    <div onClick={onClose} className="lup-modal-ov" style={{ position: "fixed", inset: 0, background: "rgba(27,26,23,.5)", zIndex: 70, display: "flex", alignItems: "flex-start", justifyContent: "center", padding: 24, overflow: "auto" }}>
       <div onClick={(e) => e.stopPropagation()} style={{ background: T.bg, borderRadius: 16, maxWidth: 620, width: "100%", margin: "auto", overflow: "hidden", animation: "lupFade .2s ease both" }}>
         <div style={{ padding: "18px 26px 0", borderBottom: `1px solid ${T.line}` }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14 }}>

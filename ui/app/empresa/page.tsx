@@ -240,7 +240,7 @@ export default function Page() {
       )}
 
       {detalle && (
-        <div onClick={() => setDetalle(null)} style={{ position: "fixed", inset: 0, background: "rgba(27,26,23,.5)", zIndex: 70, display: "flex", alignItems: "flex-start", justifyContent: "center", padding: 24, overflow: "auto" }}>
+        <div onClick={() => setDetalle(null)} className="lup-modal-ov" style={{ position: "fixed", inset: 0, background: "rgba(27,26,23,.5)", zIndex: 70, display: "flex", alignItems: "flex-start", justifyContent: "center", padding: 24, overflow: "auto" }}>
           <div onClick={(e) => e.stopPropagation()} style={{ background: T.bg, borderRadius: 16, maxWidth: 640, width: "100%", margin: "auto", overflow: "hidden", animation: "lupFade .2s ease both" }}>
             <div style={{ background: T.ia, color: T.surface, padding: "16px 24px", display: "flex", alignItems: "center" }}>
               <div style={{ fontSize: 17, fontWeight: 700 }}>Detalles del contrato</div>
@@ -261,7 +261,7 @@ export default function Page() {
                   </div>
                 ))}
               </div>
-              <div style={{ background: T.surface, border: `1px solid ${T.line}`, borderRadius: 10, padding: "14px 18px", display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12 }}>
+              <div className="lup-valores-3" style={{ background: T.surface, border: `1px solid ${T.line}`, borderRadius: 10, padding: "14px 18px", display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12 }}>
                 {([
                   ["VALOR", enMillones(detalle.valor_del_contrato)],
                   ["ESTADO", detalle.estado_contrato || "—"],

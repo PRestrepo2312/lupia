@@ -32,6 +32,24 @@ export default function Page() {
         ))}
       </div>
 
+      <div style={{ fontFamily: T.mono, fontSize: 10.5, letterSpacing: "0.06em", color: T.muted, marginBottom: 12 }}>CÓMO LEER EL SCORE DE RIESGO</div>
+      <div className="metodo-escala" style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12, marginBottom: 34 }}>
+        {([
+          ["Bajo", "0–39", T.bajo, "Sin señales que ameriten revisión por ahora. El contrato luce dentro de lo esperable."],
+          ["Medio", "40–69", T.medio, "Amerita una mirada: hay uno o más indicios que conviene verificar en la fuente."],
+          ["Alto", "70–100", T.alto, "Varias señales fuertes coinciden. Revisar con prioridad — nunca es una acusación, es una alerta."],
+        ] as [string, string, string, string][]).map(([nivel, rango, color, texto]) => (
+          <div key={nivel} style={{ background: T.surface, border: `1px solid ${T.line}`, borderLeft: `3px solid ${color}`, borderRadius: 12, padding: "18px 20px" }}>
+            <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginBottom: 8 }}>
+              <span style={{ width: 11, height: 11, borderRadius: "50%", background: color, flex: "none" }} />
+              <span style={{ fontSize: 16, fontWeight: 700 }}>{nivel}</span>
+              <span style={{ fontFamily: T.mono, fontSize: 12.5, color, marginLeft: "auto", fontWeight: 600 }}>{rango}</span>
+            </div>
+            <div style={{ fontSize: 13, lineHeight: 1.55, color: T.ink2 }}>{texto}</div>
+          </div>
+        ))}
+      </div>
+
       <div style={{ fontFamily: T.mono, fontSize: 10.5, letterSpacing: "0.06em", color: T.muted, marginBottom: 12 }}>SEÑALES QUE DETECTA</div>
       <div style={{ background: T.surface, border: `1px solid ${T.line}`, borderRadius: 12, overflow: "hidden", marginBottom: 34 }}>
         {SENALES.map(([nombre, como, tipo]) => (
