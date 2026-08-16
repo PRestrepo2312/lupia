@@ -80,6 +80,13 @@ export const auth = {
 
 export interface Suscripcion { id: number; departamento: string | null; municipio: string | null }
 export interface PerfilEmpresa { tiene_empresa: boolean; nit: string | null; intereses: string[] }
+export interface Convocatoria {
+  afinidad: number; id_del_proceso: string; referencia: string | null;
+  entidad: string; departamento: string; ciudad: string | null;
+  objeto: string; precio_base: number; modalidad: string | null;
+  tipo_de_contrato: string | null; publicada: string; duracion: string;
+  url: string | null; razon: string;
+}
 
 export const lupia = {
   salud: () => api<{ ok: boolean; contratos: number; alertas: number; base: string }>("/salud"),
@@ -94,6 +101,10 @@ export const lupia = {
   guardarPerfilEmpresa: (p: PerfilEmpresa) =>
     api("/empresa/perfil", { method: "POST", body: JSON.stringify(p) }),
   miPerfilEmpresa: () => api<PerfilEmpresa>("/empresa/perfil"),
+  convocatorias: () =>
+    api<{ nit: string | null; con_historial: boolean; convocatorias: Convocatoria[] }>("/empresa/convocatorias"),
+  enviarConvocatorias: () =>
+    api<{ ok: boolean; enviadas: number }>("/empresa/convocatorias/enviar", { method: "POST" }),
   chat: (pregunta: string) =>
     api<{ respuesta: string }>("/ia/chat", { method: "POST", body: JSON.stringify({ pregunta }) }),
 };

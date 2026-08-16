@@ -36,9 +36,11 @@ export function Monitor() {
     }).catch(() => {});
   }, []);
 
+  const norm = (s: string) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  const depOk = (d: string) => dep === "Todos" || !dep.trim() || d === dep || norm(d).includes(norm(dep));
   const visibles = useMemo(() => data
     .filter((c) => (cat === "Todas" || c.cat === cat)
-      && (dep === "Todos" || c.dept === dep)
+      && depOk(c.dept)
       && (cat !== "Emergencias y desastres" || evento === "Todos los eventos" || c.evento === evento))
     .sort((a, b) => b.score - a.score), [data, cat, dep, evento]);
 
@@ -89,19 +91,25 @@ export function Monitor() {
           ))}
         </div>
         <select value={cat} onChange={(e) => { setCat(e.target.value); if (e.target.value !== "Emergencias y desastres") setEvento("Todos los eventos"); }}
+          title="Categorías de LupIA: agrupación propia calculada sobre el objeto de cada contrato (SECOP publica códigos UNSPSC, no estas categorías)"
           style={{ fontSize: 13, color: T.ink2, border: "1px solid #d8d3c7", background: T.surface, borderRadius: 99, padding: "8px 12px", cursor: "pointer", maxWidth: 240 }}>
           {["Todas", ...CATEGORIAS].map((c) => {
             const lote = c === "Todas" ? data : data.filter((x) => x.cat === c);
             return <option key={c} value={c}>{GLIFOS[c] ?? "◇"} {c === "Todas" ? "Todas las categorías" : c} ({lote.length})</option>;
           })}
         </select>
-        <select value={dep} onChange={(e) => setDep(e.target.value)}
-          style={{ fontSize: 13, color: T.ink2, border: "1px solid #d8d3c7", background: T.surface, borderRadius: 99, padding: "8px 12px", cursor: "pointer", maxWidth: 240 }}>
-          {["Todos", ...DEPARTAMENTOS].map((d) => {
-            const n = d === "Todos" ? data.length : data.filter((c) => c.dept === d).length;
-            return <option key={d} value={d}>{d === "Todos" ? "Todos los departamentos" : d}{n ? ` (${n})` : ""}</option>;
-          })}
-        </select>
+        <input list="lupia-deptos" value={dep === "Todos" ? "" : dep}
+          onChange={(e) => setDep(e.target.value || "Todos")}
+          placeholder="Departamento (escribe o elige)"
+          title="Escribe parte del nombre (ej: 'risa' encuentra Risaralda) o elige de la lista"
+          style={{ fontSize: 13, color: T.ink2, border: "1px solid #d8d3c7", background: T.surface, borderRadius: 99, padding: "8px 14px", width: 220 }} />
+        <datalist id="lupia-deptos">
+          {DEPARTAMENTOS.map((d) => <option key={d} value={d} />)}
+        </datalist>
+        {dep !== "Todos" && dep.trim() && (
+          <button onClick={() => setDep("Todos")} title="Quitar filtro de departamento"
+            style={{ border: "1px solid #d8d3c7", background: T.surface, color: T.muted, fontSize: 12, padding: "7px 11px", borderRadius: 99, cursor: "pointer" }}>✕</button>
+        )}
         {vista === "tabla" && (
           <span style={{ fontFamily: T.mono, fontSize: 11, color: T.muted, marginLeft: "auto" }}>
             {visibles.length} señales · pág. {pagina}/{totalPaginas}
@@ -121,7 +129,7 @@ export function Monitor() {
 
       {vista === "mapa" && (
         <div style={{ margin: "0 -28px" }}>
-          <MapaClient />
+          <MapaClient cat={cat} dep={dep} evento={evento} onVerAnalisis={setSel} />
         </div>
       )}
 

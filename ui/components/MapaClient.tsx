@@ -4,17 +4,31 @@ import * as d3 from "d3";
 import * as topojson from "topojson-client";
 import { Contrato } from "@/lib/types";
 import { getContratos } from "@/lib/api";
-import { CATEGORIAS, EVENTOS, DEPARTAMENTOS } from "@/lib/data";
+import { CATEGORIAS, EVENTOS } from "@/lib/data";
 import { T, fmtM, riesgo, nivelLabel } from "@/lib/theme";
 
 const W = 860, H = 640;
 const ATLAS = "https://cdn.jsdelivr.net/npm/world-atlas@2.0.2/countries-110m.json";
 
-export function MapaClient() {
+const norm = (s: string) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+
+interface Props {
+  // Modo embebido (dentro del Monitor): los filtros vienen de afuera y se abre el analisis
+  cat?: string;
+  dep?: string;
+  evento?: string;
+  onVerAnalisis?: (id: string) => void;
+}
+
+export function MapaClient({ cat: catProp, dep: depProp, evento: eventoProp, onVerAnalisis }: Props) {
+  const embebido = catProp !== undefined;
   const [data, setData] = useState<Contrato[]>([]);
-  const [cat, setCat] = useState("Todas");
-  const [evento, setEvento] = useState("Todos los eventos");
-  const [dep, setDep] = useState("Todos");
+  const [catLocal, setCatLocal] = useState("Todas");
+  const [eventoLocal, setEventoLocal] = useState("Todos los eventos");
+  const [depLocal, setDepLocal] = useState("Todos");
+  const cat = catProp ?? catLocal;
+  const evento = eventoProp ?? eventoLocal;
+  const dep = depProp ?? depLocal;
   const [orden, setOrden] = useState<"riesgo" | "valor" | "fecha">("riesgo");
   const [sel, setSel] = useState<string | null>(null);
   const svgRef = useRef<SVGSVGElement | null>(null);
@@ -23,10 +37,11 @@ export function MapaClient() {
 
   useEffect(() => { getContratos().then(setData); }, []);
 
+  const depOk = (d: string) => dep === "Todos" || !dep || d === dep || norm(d).includes(norm(dep));
   const pasa = (c: Contrato) =>
     (cat === "Todas" || c.cat === cat)
     && (cat !== "Emergencias y desastres" || evento === "Todos los eventos" || c.evento === evento)
-    && (dep === "Todos" || c.dept === dep);
+    && depOk(c.dept);
 
   const projection = useMemo(() => d3.geoMercator().fitSize([W, H], { type: "MultiPoint", coordinates: [[-80.5, -4.6], [-66.2, 13.2]] } as any), []);
   const rS = useMemo(() => d3.scaleSqrt().domain([0, 12500]).range([9, 22]), []);
@@ -79,11 +94,25 @@ export function MapaClient() {
     (svgRef.current as any).__zoom__ = zoom;
   }, [projection]);
 
+  // acercarse suavemente a un contrato (click en punto o en la lista)
+  const irA = (c: Contrato, k = 4.5) => {
+    const zoom = (svgRef.current as any)?.__zoom__;
+    if (!zoom || !svgRef.current) return;
+    const p = projection([c.lon, c.lat])!;
+    const actual = d3.zoomTransform(svgRef.current).k;
+    const escala = Math.max(actual, k);
+    d3.select(svgRef.current).transition().duration(650).ease(d3.easeCubicOut)
+      .call(zoom.transform, d3.zoomIdentity.translate(W / 2, H / 2).scale(escala).translate(-p[0], -p[1]));
+  };
+
+  const elegir = (c: Contrato) => { setSel(c.id); irA(c); };
+
   // puntos
   useEffect(() => {
     if (!svgRef.current) return;
     const pts = d3.select(svgRef.current).select("g.pts");
     const vis = data.filter(pasa);
+    const k = d3.zoomTransform(svgRef.current).k || 1;
     const g = pts.selectAll<SVGGElement, Contrato>("g.pt").data(vis, (c: any) => c.id)
       .join((enter) => {
         const gg = enter.append("g").attr("class", "pt").style("cursor", "pointer");
@@ -92,14 +121,14 @@ export function MapaClient() {
           .attr("font-family", T.mono).attr("font-size", 11).attr("fill", T.surface).style("pointer-events", "none");
         return gg;
       });
-    g.attr("transform", (c) => { const p = projection([c.lon, c.lat])!; return `translate(${p[0]},${p[1]})`; })
-      .on("click", (_e, c) => setSel(c.id))
+    g.attr("transform", (c) => { const p = projection([c.lon, c.lat])!; return `translate(${p[0]},${p[1]}) scale(${1 / k})`; })
+      .on("click", (_e, c) => elegir(c))
       .on("mousemove", (e: MouseEvent, c) => {
         const tip = tipRef.current, wrap = wrapRef.current;
         if (!tip || !wrap) return;
         const b = wrap.getBoundingClientRect();
         tip.style.opacity = "1";
-        tip.innerHTML = `<b>${c.objeto}</b><br>${c.entidad} · ${c.ciudad}<br>${fmtM(c.valor)} · riesgo ${c.score}`;
+        tip.innerHTML = `<b>${c.objeto}</b><br>${c.entidad} · ${c.ciudad}<br>${fmtM(c.valor)} · riesgo ${c.score}<br><span style="opacity:.75">clic para acercar y ver el análisis</span>`;
         tip.style.left = Math.min(e.clientX - b.left + 14, b.width - 262) + "px";
         tip.style.top = (e.clientY - b.top - 12) + "px";
       })
@@ -119,6 +148,7 @@ export function MapaClient() {
     const svg = d3.select(svgRef.current!);
     const zoom = (svgRef.current as any).__zoom__;
     if (zoom) svg.transition().duration(360).call(zoom.transform, d3.zoomIdentity);
+    setSel(null);
   };
 
   const vis = data.filter(pasa);
@@ -127,32 +157,38 @@ export function MapaClient() {
   const btn: React.CSSProperties = { width: 30, height: 30, borderRadius: 8, border: "1px solid #d8d3c7", background: T.surface, color: T.ink2, fontSize: 15, cursor: "pointer" };
 
   return (
-    <main style={{ maxWidth: 1240, margin: "0 auto", padding: "30px 28px 60px" }}>
-      <div style={{ fontFamily: T.mono, fontSize: 11, letterSpacing: "0.08em", color: T.alto, marginBottom: 10 }}>MAPA NACIONAL · 33 DEPARTAMENTOS</div>
-      <h1 style={{ fontSize: 34, lineHeight: 1.1, letterSpacing: "-0.025em", margin: "0 0 10px", fontWeight: 700 }}>Cada punto es un contrato público georreferenciado</h1>
-      <p style={{ margin: "0 0 20px", fontSize: 15, lineHeight: 1.55, color: T.muted, maxWidth: 660 }}>Filtra por categoría y, dentro de emergencias, por el evento que la originó. El color es el nivel de riesgo del modelo; el tamaño, la cuantía.</p>
+    <main style={{ maxWidth: 1240, margin: "0 auto", padding: embebido ? "6px 28px 20px" : "30px 28px 60px" }}>
+      {!embebido && (
+        <>
+          <div style={{ fontFamily: T.mono, fontSize: 11, letterSpacing: "0.08em", color: T.alto, marginBottom: 10 }}>MAPA NACIONAL · 33 DEPARTAMENTOS</div>
+          <h1 style={{ fontSize: 34, lineHeight: 1.1, letterSpacing: "-0.025em", margin: "0 0 10px", fontWeight: 700 }}>Cada punto es un contrato público georreferenciado</h1>
+          <p style={{ margin: "0 0 20px", fontSize: 15, lineHeight: 1.55, color: T.muted, maxWidth: 660 }}>Filtra por categoría y, dentro de emergencias, por el evento que la originó. El color es el nivel de riesgo del modelo; el tamaño, la cuantía.</p>
 
-      <div style={{ display: "flex", gap: 7, flexWrap: "wrap", marginBottom: 9 }}>
-        {["Todas", ...CATEGORIAS].map((c) => {
-          const on = cat === c;
-          return <button key={c} onClick={() => { setCat(c); if (c !== "Emergencias y desastres") setEvento("Todos los eventos"); }} style={{ border: `1px solid ${on ? T.ink : "#d8d3c7"}`, background: on ? T.ink : T.surface, color: on ? T.surface : T.ink2, fontSize: 12.5, fontWeight: 500, padding: "7px 13px", borderRadius: 99, cursor: "pointer" }}>{c === "Todas" ? "Todas las categorías" : c}</button>;
-        })}
-      </div>
+          <div style={{ display: "flex", gap: 7, flexWrap: "wrap", marginBottom: 9 }}>
+            {["Todas", ...CATEGORIAS].map((c) => {
+              const on = cat === c;
+              return <button key={c} onClick={() => { setCatLocal(c); if (c !== "Emergencias y desastres") setEventoLocal("Todos los eventos"); }} style={{ border: `1px solid ${on ? T.ink : "#d8d3c7"}`, background: on ? T.ink : T.surface, color: on ? T.surface : T.ink2, fontSize: 12.5, fontWeight: 500, padding: "7px 13px", borderRadius: 99, cursor: "pointer" }}>{c === "Todas" ? "Todas las categorías" : c}</button>;
+            })}
+          </div>
 
-      {cat === "Emergencias y desastres" && (
-        <div style={{ display: "flex", gap: 7, flexWrap: "wrap", alignItems: "center", marginBottom: 9 }}>
-          <span style={{ fontFamily: T.mono, fontSize: 10, color: T.muted, marginRight: 4 }}>EVENTO</span>
-          {["Todos los eventos", ...EVENTOS].map((e) => {
-            const on = evento === e;
-            return <button key={e} onClick={() => setEvento(e)} style={{ border: `1px ${on ? "solid" : "dashed"} ${on ? T.alto : "#d8d3c7"}`, background: on ? T.alto : T.surface, color: on ? T.surface : T.ink2, fontSize: 12, padding: "6px 12px", borderRadius: 99, cursor: "pointer" }}>{e}</button>;
-          })}
-        </div>
+          {cat === "Emergencias y desastres" && (
+            <div style={{ display: "flex", gap: 7, flexWrap: "wrap", alignItems: "center", marginBottom: 9 }}>
+              <span style={{ fontFamily: T.mono, fontSize: 10, color: T.muted, marginRight: 4 }}>EVENTO</span>
+              {["Todos los eventos", ...EVENTOS].map((e) => {
+                const on = evento === e;
+                return <button key={e} onClick={() => setEventoLocal(e)} style={{ border: `1px ${on ? "solid" : "dashed"} ${on ? T.alto : "#d8d3c7"}`, background: on ? T.alto : T.surface, color: on ? T.surface : T.ink2, fontSize: 12, padding: "6px 12px", borderRadius: 99, cursor: "pointer" }}>{e}</button>;
+              })}
+            </div>
+          )}
+        </>
       )}
 
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", marginBottom: 18 }}>
-        <select value={dep} onChange={(e) => setDep(e.target.value)} style={{ fontSize: 12.5, color: T.ink2, border: "1px solid #d8d3c7", background: T.surface, borderRadius: 99, padding: "7px 12px", cursor: "pointer" }}>
-          {["Todos", ...DEPARTAMENTOS].map((d) => <option key={d} value={d}>{d === "Todos" ? "Todos los departamentos" : d}</option>)}
-        </select>
+        {!embebido && (
+          <select value={dep} onChange={(e) => setDepLocal(e.target.value)} style={{ fontSize: 12.5, color: T.ink2, border: "1px solid #d8d3c7", background: T.surface, borderRadius: 99, padding: "7px 12px", cursor: "pointer" }}>
+            {["Todos"].concat(Array.from(new Set(data.map((c) => c.dept))).sort()).map((d) => <option key={d} value={d}>{d === "Todos" ? "Todos los departamentos" : d}</option>)}
+          </select>
+        )}
         <select value={orden} onChange={(e) => setOrden(e.target.value as any)} style={{ fontSize: 12.5, color: T.ink2, border: "1px solid #d8d3c7", background: T.surface, borderRadius: 99, padding: "7px 12px", cursor: "pointer" }}>
           <option value="riesgo">Mayor riesgo</option><option value="valor">Mayor cuantía</option><option value="fecha">Más reciente</option>
         </select>
@@ -174,19 +210,19 @@ export function MapaClient() {
               <div><div style={{ fontFamily: T.mono, fontSize: 9, color: T.muted, marginBottom: 4 }}>RIESGO ALTO</div><div style={{ fontSize: 20, fontWeight: 700, color: T.alto }}>{vis.filter((c) => c.score >= 70).length}</div></div>
             </div>
             <div style={{ position: "absolute", top: 16, right: 16, zIndex: 4, display: "flex", flexDirection: "column", gap: 6 }}>
-              <button style={btn} onClick={() => zoomBy(1.7)}>+</button>
-              <button style={btn} onClick={() => zoomBy(1 / 1.7)}>−</button>
-              <button style={{ ...btn, fontSize: 12 }} onClick={reset}>⤾</button>
+              <button style={btn} onClick={() => zoomBy(1.7)} title="Acercar">+</button>
+              <button style={btn} onClick={() => zoomBy(1 / 1.7)} title="Alejar">−</button>
+              <button style={{ ...btn, fontSize: 12 }} onClick={reset} title="Ver todo el país">⤾</button>
             </div>
-            <div style={{ position: "absolute", bottom: 14, left: 16, zIndex: 4, background: "rgba(255,254,251,.94)", border: "1px solid #d8d3c7", borderRadius: 11, padding: "8px 11px", fontFamily: T.mono, fontSize: 9.5, color: T.muted }}>GEOMETRÍA: NATURAL EARTH · CIFRAS SIMULADAS</div>
+            <div style={{ position: "absolute", bottom: 14, left: 16, zIndex: 4, background: "rgba(255,254,251,.94)", border: "1px solid #d8d3c7", borderRadius: 11, padding: "8px 11px", fontFamily: T.mono, fontSize: 9.5, color: T.muted }}>GEOMETRÍA: NATURAL EARTH · DATOS: SECOP II (DATOS.GOV.CO)</div>
           </div>
         </div>
 
         <div>
           <div style={{ fontFamily: T.mono, fontSize: 10.5, color: T.muted, marginBottom: 10 }}>{vis.length} CONTRATOS EN VISTA · DE {data.length}</div>
-          <div className="lup-scroll" style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: 604, overflowY: "auto", paddingRight: 4 }}>
+          <div className="lup-scroll" style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: elegido ? 420 : 604, overflowY: "auto", paddingRight: 4 }}>
             {ord.map((c) => (
-              <div key={c.id} onClick={() => setSel(c.id)} className="lup-card" style={{ background: T.surface, border: `1px solid ${sel === c.id ? T.ink : T.line}`, borderRadius: 11, padding: "12px 13px", cursor: "pointer", display: "grid", gridTemplateColumns: "34px 1fr", gap: 11 }}>
+              <div key={c.id} onClick={() => elegir(c)} className="lup-card" style={{ background: T.surface, border: `1px solid ${sel === c.id ? T.ink : T.line}`, borderRadius: 11, padding: "12px 13px", cursor: "pointer", display: "grid", gridTemplateColumns: "34px 1fr", gap: 11 }}>
                 <div style={{ width: 34, height: 34, borderRadius: "50%", background: riesgo(c.score), color: T.surface, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: T.mono, fontSize: 12.5 }}>{c.score}</div>
                 <div>
                   <div style={{ fontSize: 13.5, fontWeight: 600, lineHeight: 1.3 }}>{c.objeto}</div>
@@ -197,11 +233,21 @@ export function MapaClient() {
             ))}
           </div>
           {elegido && (
-            <div style={{ marginTop: 12, background: T.surface, border: `1px solid ${T.ink}`, borderRadius: 11, padding: "15px 16px" }}>
+            <div style={{ marginTop: 12, background: T.surface, border: `1px solid ${T.ink}`, borderRadius: 11, padding: "15px 16px", animation: "lupFade .25s ease both" }}>
               <div style={{ fontFamily: T.mono, fontSize: 10, color: T.muted, marginBottom: 6 }}>{elegido.cat.toUpperCase()} · {elegido.dept.toUpperCase()} · {nivelLabel(elegido.score)}</div>
               <div style={{ fontSize: 15.5, fontWeight: 700, lineHeight: 1.3, marginBottom: 6 }}>{elegido.objeto}</div>
-              <div style={{ fontSize: 13, color: T.muted, marginBottom: 10 }}>{fmtM(elegido.valor)} · riesgo {elegido.score} · {elegido.evento}</div>
-              <a href="/" style={{ fontSize: 13, fontWeight: 600 }}>Ver análisis de la IA →</a>
+              <div style={{ fontSize: 13, color: T.muted, marginBottom: 12 }}>{fmtM(elegido.valor)} · riesgo {elegido.score}{elegido.evento ? ` · ${elegido.evento}` : ""}</div>
+              {onVerAnalisis ? (
+                <button onClick={() => onVerAnalisis(elegido.id)}
+                  style={{ width: "100%", border: "none", background: T.ink, color: T.surface, fontSize: 13.5, fontWeight: 600, padding: "11px 0", borderRadius: 8, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+                  Ver el análisis de la IA
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M5 12h14M13 6l6 6-6 6" />
+                  </svg>
+                </button>
+              ) : (
+                <a href="/" style={{ fontSize: 13, fontWeight: 600 }}>Ver análisis de la IA →</a>
+              )}
             </div>
           )}
         </div>

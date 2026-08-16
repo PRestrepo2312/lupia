@@ -102,15 +102,7 @@ def generar_codigo(correo_: str, proposito: str) -> tuple[str, bool, str | None]
     if config.BREVO_API_KEY:
         titulo = ("Tu codigo para entrar a LupIA" if proposito == "ingreso"
                   else "Codigo para restablecer tu contraseña en LupIA")
-        html = f"""
-        <div style="font-family:Arial,sans-serif;max-width:480px">
-          <h2 style="color:#1a1a2e">LupIA</h2>
-          <p>{'Usa este codigo para ingresar' if proposito == 'ingreso'
-              else 'Usa este codigo para restablecer tu contraseña'}:</p>
-          <p style="font-size:34px;font-weight:bold;letter-spacing:8px">{codigo}</p>
-          <p style="color:#666">Vence en {OTP_VIGENCIA_MIN} minutos. Si no lo pediste, ignora este correo.</p>
-        </div>
-        """
+        html = correo.html_codigo(codigo, proposito, OTP_VIGENCIA_MIN)
         try:
             correo.enviar_correo([correo_], titulo, html)
             enviado = True

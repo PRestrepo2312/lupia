@@ -23,10 +23,12 @@ export function Header() {
     <header style={{ position: "sticky", top: 0, zIndex: 20, background: T.surface, borderBottom: `1px solid ${T.line}` }}>
       <div style={{ maxWidth: 1240, margin: "0 auto", padding: "14px 28px", display: "flex", alignItems: "center", gap: 28 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <div style={{ width: 26, height: 26, borderRadius: "50%", border: `2.5px solid ${T.ink}`, position: "relative" }}>
-            <div style={{ position: "absolute", width: 2.5, height: 11, background: T.ink, bottom: -9, right: 0, transform: "rotate(-40deg)", transformOrigin: "top" }} />
-          </div>
-          <div style={{ fontSize: 19, fontWeight: 700, letterSpacing: "-0.02em" }}>LupIA</div>
+          <Link href="/" title="Volver al monitor" style={{ display: "flex", alignItems: "center", gap: 10, color: T.ink, textDecoration: "none" }}>
+            <div style={{ width: 26, height: 26, borderRadius: "50%", border: `2.5px solid ${T.ink}`, position: "relative" }}>
+              <div style={{ position: "absolute", width: 2.5, height: 11, background: T.ink, bottom: -9, right: 0, transform: "rotate(-40deg)", transformOrigin: "top" }} />
+            </div>
+            <div style={{ fontSize: 19, fontWeight: 700, letterSpacing: "-0.02em" }}>LupIA</div>
+          </Link>
           {estado === undefined ? null : estado ? (
             <div title={`Base: ${estado.base}`} style={{ fontFamily: T.mono, fontSize: 10, color: T.bajo, border: "1px solid #cfdcd4", background: "#f2f6f3", borderRadius: 99, padding: "3px 8px", marginLeft: 4, whiteSpace: "nowrap" }}>
               ● DATOS REALES · SECOP II · {estado.contratos.toLocaleString("es-CO")} CONTRATOS

@@ -9,7 +9,7 @@ from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from engine import config, correo, db, ia, ingesta, proveedores, senales
+from engine import config, convocatorias, correo, db, ia, ingesta, proveedores, senales
 
 from api.auth import router as auth_router, usuario_actual
 
@@ -161,9 +161,55 @@ class PreguntaChat(BaseModel):
     pregunta: str
 
 
+def _sin_acentos(texto: str) -> str:
+    import unicodedata
+    nfd = unicodedata.normalize("NFD", texto or "")
+    return "".join(c for c in nfd if unicodedata.category(c) != "Mn").lower()
+
+
+def _foco_territorial(conn, pregunta: str) -> dict | None:
+    """Si la pregunta menciona un departamento o ciudad del cache, arma un recorte con sus datos."""
+    # signos de puntuacion pegados ("¿en pereira?") no deben romper el match
+    limpio = "".join(c if c.isalnum() or c.isspace() else " " for c in _sin_acentos(pregunta))
+    q = f" {' '.join(limpio.split())} "
+    territorios = conn.execute(
+        "SELECT DISTINCT departamento AS t FROM contratos "
+        "UNION SELECT DISTINCT ciudad AS t FROM contratos"
+    ).fetchall()
+    mencionados = [f["t"] for f in territorios
+                   if f["t"] and len(f["t"]) >= 4 and f" {_sin_acentos(f['t'])} " in q]
+    if not mencionados:
+        return None
+    marcas = ",".join("?" for _ in mencionados)
+    agregado = dict(conn.execute(
+        f"""
+        SELECT COUNT(*) AS contratos, COALESCE(SUM(valor_del_contrato),0) AS valor_total
+        FROM contratos WHERE departamento IN ({marcas}) OR ciudad IN ({marcas})
+        """,
+        (*mencionados, *mencionados),
+    ).fetchone())
+    muestra = [dict(f) for f in conn.execute(
+        f"""
+        SELECT c.nombre_entidad, c.ciudad, c.departamento, c.descripcion_del_proceso,
+               c.valor_del_contrato, c.proveedor_adjudicado, c.modalidad_de_contratacion,
+               c.fecha_de_firma, a.senal, a.score
+        FROM contratos c LEFT JOIN alertas a ON a.id_contrato = c.id_contrato
+        WHERE c.departamento IN ({marcas}) OR c.ciudad IN ({marcas})
+        ORDER BY c.valor_del_contrato DESC LIMIT 15
+        """,
+        (*mencionados, *mencionados),
+    )]
+    return {
+        "territorios_detectados": mencionados,
+        "contratos": agregado["contratos"],
+        "valor_total": agregado["valor_total"],
+        "mayores_contratos": muestra,
+    }
+
+
 @app.post("/ia/chat")
 def ia_chat(entrada: PreguntaChat):
-    """Chat ciudadano: Claude responde sobre los datos reales del cache."""
+    """Chat ciudadano: la IA responde sobre TODO el cache nacional, no solo la emergencia."""
     with db.get_conn() as conn:
         resumen_deptos = [dict(f) for f in conn.execute(
             """
@@ -171,7 +217,7 @@ def ia_chat(entrada: PreguntaChat):
                    SUM(c.valor_del_contrato) AS valor_total,
                    COUNT(DISTINCT a.id) AS senales
             FROM contratos c LEFT JOIN alertas a ON a.id_contrato = c.id_contrato
-            WHERE c.origen='terremoto' GROUP BY c.departamento ORDER BY valor_total DESC
+            GROUP BY c.departamento ORDER BY valor_total DESC
             """
         )]
         top_senales = [dict(f) for f in conn.execute(
@@ -182,11 +228,15 @@ def ia_chat(entrada: PreguntaChat):
             ORDER BY a.score DESC, c.valor_del_contrato DESC LIMIT 20
             """
         )]
+        foco = _foco_territorial(conn, entrada.pregunta)
     contexto = {
-        "corte": "contratos firmados desde 2026-08-10, todo el pais",
+        "ventana": ("contratos firmados desde el 10 de agosto de 2026, "
+                    "TODOS los departamentos del pais (cobertura nacional)"),
         "resumen_por_departamento": resumen_deptos,
         "principales_senales": top_senales,
     }
+    if foco:
+        contexto["datos_del_territorio_preguntado"] = foco
     respuesta = ia.responder_chat(entrada.pregunta, contexto)
     if respuesta is None:
         raise HTTPException(503, "IA no disponible (modo demo o sin credenciales)")
@@ -272,6 +322,75 @@ def ver_perfil_empresa(usuario: dict = Depends(usuario_actual)):
         raise HTTPException(404, "Sin perfil de empresa todavia")
     return {"tiene_empresa": bool(fila["tiene_empresa"]), "nit": fila["nit"],
             "intereses": (fila["intereses"] or "").split(",") if fila["intereses"] else []}
+
+
+# ---------- convocatorias segun perfil ----------
+
+def _nit_del_usuario(correo_usuario: str) -> str | None:
+    with db.get_conn() as conn:
+        fila = conn.execute(
+            "SELECT nit FROM empresa_perfil WHERE correo = ?", (correo_usuario,)
+        ).fetchone()
+    return fila["nit"] if fila else None
+
+
+@app.get("/empresa/convocatorias")
+def convocatorias_empresa(usuario: dict = Depends(usuario_actual)):
+    """Convocatorias abiertas (p6dx-8zbt) rankeadas por afinidad con el perfil del NIT."""
+    nit = _nit_del_usuario(usuario["correo"])
+    try:
+        items = convocatorias.buscar(nit)
+    except Exception:
+        raise HTTPException(503, "datos.gov.co no respondio, intenta en unos segundos")
+    return {"nit": nit, "con_historial": bool(nit), "convocatorias": items}
+
+
+@app.post("/empresa/convocatorias/enviar")
+def enviar_convocatorias_usuario(usuario: dict = Depends(usuario_actual)):
+    """Envia por Brevo las convocatorias del perfil al correo del usuario."""
+    if not config.BREVO_API_KEY:
+        raise HTTPException(503, "Falta BREVO_API_KEY en el .env")
+    nit = _nit_del_usuario(usuario["correo"])
+    try:
+        items = convocatorias.buscar(nit)
+    except Exception:
+        raise HTTPException(503, "datos.gov.co no respondio, intenta en unos segundos")
+    if not items:
+        raise HTTPException(404, "No hay convocatorias abiertas que calcen con el perfil hoy")
+    correo.enviar_correo(
+        [usuario["correo"]],
+        "LupIA · Convocatorias abiertas que calzan con tu perfil",
+        correo.html_convocatorias(items),
+    )
+    return {"ok": True, "enviadas": len(items)}
+
+
+@app.post("/convocatorias/enviar-correos")
+def enviar_convocatorias_todos(maximo: int = 20):
+    """Barrido: manda convocatorias a cada perfil con interes 'convocatorias' (cron/manual)."""
+    if not config.BREVO_API_KEY:
+        raise HTTPException(503, "Falta BREVO_API_KEY en el .env")
+    with db.get_conn() as conn:
+        perfiles = [dict(f) for f in conn.execute(
+            "SELECT correo, nit FROM empresa_perfil "
+            "WHERE tiene_empresa = 1 AND intereses LIKE ? LIMIT ?",
+            ("%convocatorias%", maximo),
+        )]
+    enviados = 0
+    for p in perfiles:
+        try:
+            items = convocatorias.buscar(p["nit"])
+            if not items:
+                continue
+            correo.enviar_correo(
+                [p["correo"]],
+                "LupIA · Convocatorias abiertas que calzan con tu perfil",
+                correo.html_convocatorias(items),
+            )
+            enviados += 1
+        except Exception:
+            continue
+    return {"correos_enviados": enviados, "perfiles_revisados": len(perfiles)}
 
 
 @app.post("/alertas/enviar-correos")

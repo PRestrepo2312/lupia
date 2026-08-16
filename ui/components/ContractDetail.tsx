@@ -70,7 +70,13 @@ export function ContractDetail({ c, onBack }: { c: Contrato; onBack: () => void 
 
   return (
     <main style={{ maxWidth: 1240, margin: "0 auto", padding: "28px 28px 80px" }}>
-      <button onClick={onBack} style={{ border: "none", background: "none", color: T.muted, fontSize: 13, padding: 0, marginBottom: 20, cursor: "pointer" }}>← Volver al monitor</button>
+      <button onClick={onBack} className="lup-card"
+        style={{ border: "1px solid #d8d3c7", background: T.surface, color: T.ink2, fontSize: 13, fontWeight: 600, padding: "9px 16px 9px 12px", borderRadius: 99, marginBottom: 20, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 8 }}>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M19 12H5M11 18l-6-6 6-6" />
+        </svg>
+        Volver al monitor
+      </button>
       <div style={{ display: "grid", gridTemplateColumns: "1.55fr 1fr", gap: 24, alignItems: "start" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           <div style={{ ...card, padding: "26px 28px" }}>

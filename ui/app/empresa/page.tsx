@@ -1,15 +1,8 @@
 "use client";
 import { useEffect, useState } from "react";
 import { T, fmtM } from "@/lib/theme";
-import { PerfilEmpresa as PerfilGuardado, lupia } from "@/lib/api";
+import { Convocatoria, PerfilEmpresa as PerfilGuardado, lupia } from "@/lib/api";
 import { useAuth } from "@/components/AuthProvider";
-
-// Convocatorias sugeridas: demo del matching (la version real cruza p6dx-8zbt con el perfil)
-const PROCESOS = [
-  { afinidad: 92, entidad: "Alcaldía de Dosquebradas", dept: "Risaralda", objeto: "Reparación de 18 viviendas con daño estructural leve", valor: 740, cierra: "en 3 días", razon: "Coincide con tu historial en obra menor · misma UNSPSC" },
-  { afinidad: 78, entidad: "Alcaldía de Calarcá", dept: "Quindío", objeto: "Adecuación de dos sedes educativas usadas como albergue", valor: 1120, cierra: "en 5 días", razon: "Objeto afín; requiere experiencia en sedes educativas" },
-  { afinidad: 61, entidad: "Gobernación de Risaralda", dept: "Risaralda", objeto: "Interventoría técnica a obras de estabilización de taludes", valor: 420, cierra: "en 8 días", razon: "Afinidad parcial: exige interventor con matrícula vigente" },
-];
 
 interface ContratoNit {
   id_contrato: string; referencia_del_contrato?: string; fecha_de_firma?: string;
@@ -33,7 +26,7 @@ const soloFecha = (v?: string) => (v ? v.slice(0, 10) : "—");
 const enMillones = (v?: string) => fmtM(Math.round((parseFloat(v || "0") || 0) / 1e6));
 
 export default function Page() {
-  const { auth, pedir } = useAuth();
+  const { auth, pedir, toast } = useAuth();
   const [modo, setModo] = useState<"mia" | "validar">("validar");
   const [guardado, setGuardado] = useState<PerfilGuardado | null>(null);
   const [nit, setNit] = useState("");
@@ -41,6 +34,30 @@ export default function Page() {
   const [detalle, setDetalle] = useState<ContratoNit | null>(null);
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [convocatorias, setConvocatorias] = useState<Convocatoria[] | null>(null);
+  const [convError, setConvError] = useState(false);
+  const [conHistorial, setConHistorial] = useState(false);
+  const [enviando, setEnviando] = useState(false);
+
+  useEffect(() => {
+    if (!auth) return;
+    setConvError(false);
+    lupia.convocatorias()
+      .then((r) => { setConvocatorias(r.convocatorias); setConHistorial(r.con_historial); })
+      .catch(() => setConvError(true));
+  }, [auth]);
+
+  const enviarAlCorreo = async () => {
+    if (enviando) return;
+    setEnviando(true);
+    try {
+      const r = await lupia.enviarConvocatorias();
+      toast(`Te enviamos ${r.enviadas} convocatoria(s) al correo`);
+    } catch (e: any) {
+      toast(e?.message || "No pude enviar el correo, intenta de nuevo");
+    }
+    setEnviando(false);
+  };
 
   const buscar = async (valor?: string) => {
     const limpio = (valor ?? nit).replace(/\D/g, "");
@@ -274,31 +291,56 @@ export default function Page() {
         </div>
       )}
 
-      <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginBottom: 12 }}>
-        <div style={{ fontSize: 16, fontWeight: 700 }}>Convocatorias de reconstrucción que te calzan</div>
-        <span style={{ fontFamily: T.mono, fontSize: 9.5, color: T.faint }}>VISTA PREVIA DEL MATCHING · EN DESARROLLO</span>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12, flexWrap: "wrap" }}>
+        <div style={{ fontSize: 16, fontWeight: 700 }}>Convocatorias abiertas que calzan con {conHistorial ? "tu perfil" : "la reconstrucción"}</div>
+        <span style={{ fontFamily: T.mono, fontSize: 9.5, background: "#eef3f6", color: T.ia, padding: "3px 8px", borderRadius: 4 }}>MATCHING REAL · PROCESOS ABIERTOS SECOP II</span>
+        {convocatorias && convocatorias.length > 0 && (
+          <button onClick={enviarAlCorreo} disabled={enviando}
+            style={{ marginLeft: "auto", border: `1px solid ${T.ink}`, background: T.surface, color: T.ink, fontSize: 12.5, fontWeight: 600, padding: "8px 14px", borderRadius: 8, cursor: "pointer", opacity: enviando ? 0.7 : 1 }}>
+            {enviando ? "Enviando…" : "Enviármelas al correo"}
+          </button>
+        )}
       </div>
+      {convocatorias === null && !convError && (
+        <div style={{ ...card, padding: "22px", fontSize: 13.5, color: T.muted }}>Cruzando tu perfil con los procesos abiertos de SECOP II…</div>
+      )}
+      {convError && (
+        <div style={{ ...card, padding: "22px", fontSize: 13.5, color: T.muted }}>
+          datos.gov.co no respondió al buscar procesos abiertos. Recarga en unos segundos.
+        </div>
+      )}
+      {convocatorias && convocatorias.length === 0 && (
+        <div style={{ ...card, padding: "22px", fontSize: 13.5, color: T.muted, lineHeight: 1.6 }}>
+          Hoy no hay procesos abiertos que superen el umbral de afinidad con {conHistorial ? "tu historial" : "el perfil de reconstrucción"}.
+          El cruce corre sobre lo publicado en los últimos 45 días; vuelve a mirar mañana.
+        </div>
+      )}
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-        {PROCESOS.map((p) => (
-          <div key={p.objeto} style={{ ...card, padding: "20px 22px", display: "grid", gridTemplateColumns: "84px 1fr 190px", gap: 22, alignItems: "center" }}>
+        {(convocatorias ?? []).map((p) => (
+          <div key={p.id_del_proceso} style={{ ...card, padding: "20px 22px", display: "grid", gridTemplateColumns: "84px 1fr 200px", gap: 22, alignItems: "center" }}>
             <div style={{ textAlign: "center" }}>
               <div style={{ fontSize: 28, fontWeight: 700, letterSpacing: "-0.03em", color: T.ia }}>{p.afinidad}</div>
               <div style={{ fontFamily: T.mono, fontSize: 9.5, color: T.muted }}>AFINIDAD</div>
             </div>
             <div>
-              <div style={{ fontFamily: T.mono, fontSize: 10.5, color: T.muted, marginBottom: 6 }}>{p.entidad} · {p.dept}</div>
-              <div style={{ fontSize: 16, fontWeight: 600, lineHeight: 1.35, marginBottom: 6 }}>{p.objeto}</div>
+              <div style={{ fontFamily: T.mono, fontSize: 10.5, color: T.muted, marginBottom: 6 }}>{p.entidad} · {p.departamento}{p.modalidad ? ` · ${p.modalidad}` : ""}</div>
+              <div style={{ fontSize: 15.5, fontWeight: 600, lineHeight: 1.35, marginBottom: 6 }}>{p.objeto}</div>
               <div style={{ fontSize: 13, color: T.muted }}>{p.razon}</div>
             </div>
             <div style={{ textAlign: "right" }}>
-              <div style={{ fontSize: 19, fontWeight: 700, letterSpacing: "-0.02em" }}>{fmtM(p.valor)}</div>
-              <div style={{ fontSize: 12.5, color: T.alto, marginTop: 3 }}>Cierra {p.cierra}</div>
+              <div style={{ fontSize: 19, fontWeight: 700, letterSpacing: "-0.02em" }}>{fmtM(Math.round(p.precio_base / 1e6))}</div>
+              <div style={{ fontSize: 12, color: T.muted, marginTop: 3 }}>Publicada {p.publicada}{p.duracion ? ` · ${p.duracion}` : ""}</div>
+              {p.url && (
+                <a href={p.url} target="_blank" rel="noreferrer" style={{ fontSize: 12.5, fontWeight: 600, color: T.ia, display: "inline-block", marginTop: 6 }}>Ver en SECOP II ↗</a>
+              )}
             </div>
           </div>
         ))}
       </div>
       <div style={{ marginTop: 20, fontSize: 12, color: T.faint, lineHeight: 1.6, maxWidth: 720 }}>
-        El perfil se arma en vivo con datos oficiales de SECOP II. Las convocatorias sugeridas son una vista previa del matching (cruce con procesos abiertos del dataset p6dx-8zbt) — próximo en el roadmap.
+        El cruce es en vivo: procesos abiertos y no adjudicados del dataset oficial p6dx-8zbt (últimos 45 días),
+        rankeados por afinidad con {conHistorial ? "el tipo de contrato, los territorios y el objeto de tu historial real" : "un perfil de obra y suministro en la zona de emergencia"}.
+        La afinidad es una guía de LupIA; revisa siempre los pliegos en SECOP II.
       </div>
     </main>
   );
