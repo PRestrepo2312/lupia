@@ -21,6 +21,18 @@ select,input{font-family:inherit}
   .lup-detalle-side{position:static !important;top:auto !important}
   .lup-empresa-kpis{grid-template-columns:repeat(2,1fr) !important}
   .lup-empresa-tabla{font-size:12px}
+  /* Login: colapsa a una columna y oculta el panel lateral ya en tablet */
+  .lup-login{grid-template-columns:1fr !important;max-width:440px !important}
+  .lup-login-aside{display:none !important}
+  /* Mapa: apila mapa arriba y lista abajo, sin desbordar el ancho */
+  .lup-mapa-grid{grid-template-columns:1fr !important}
+  .lup-mapa-canvas{height:440px !important}
+  .lup-mapa-wrap{margin:0 !important}
+  /* Metodología */
+  .metodo-capas{grid-template-columns:1fr !important}
+  .metodo-cierre{grid-template-columns:1fr !important}
+  .metodo-senal{grid-template-columns:1fr !important;gap:5px !important;align-items:start !important}
+  .metodo-tipo{text-align:left !important}
 }
 /* Móvil */
 @media (max-width: 620px){
@@ -29,11 +41,10 @@ select,input{font-family:inherit}
   .lup-fila-contrato .lup-fila-side{border-left:none !important;padding-left:0 !important;border-top:1px solid #eee9de;padding-top:14px}
   .lup-fila-score{flex-direction:row !important;justify-content:flex-start;gap:12px}
   .perfil-grid{grid-template-columns:1fr !important}
-  .lup-login{grid-template-columns:1fr !important}
-  .lup-login-aside{display:none !important}
   .lup-header{gap:12px !important;padding-left:16px !important;padding-right:16px !important}
   .lup-header-nav{order:3;width:100%;justify-content:flex-start;margin-left:0 !important}
   .lup-empresa-kpis{grid-template-columns:1fr !important}
   .lup-detalle-meta{grid-template-columns:repeat(2,1fr) !important}
+  .lup-mapa-canvas{height:360px !important}
   main{padding-left:16px !important;padding-right:16px !important}
 }

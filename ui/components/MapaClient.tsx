@@ -183,9 +183,9 @@ export function MapaClient({ cat: catProp, dep: depProp, onVerAnalisis }: Props)
         </div>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: 20, alignItems: "start" }}>
+      <div className="lup-mapa-grid" style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: 20, alignItems: "start" }}>
         <div style={{ border: `1px solid ${T.line}`, borderRadius: 14, overflow: "hidden", background: T.surface }}>
-          <div ref={wrapRef} style={{ position: "relative", height: 640, overflow: "hidden" }}>
+          <div ref={wrapRef} className="lup-mapa-canvas" style={{ position: "relative", height: 640, overflow: "hidden" }}>
             <svg ref={svgRef} viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMid slice" style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }} />
             <div ref={tipRef} style={{ position: "absolute", pointerEvents: "none", opacity: 0, transition: "opacity .12s", background: T.ink, color: T.bg, padding: "9px 12px", borderRadius: 9, fontSize: 12, lineHeight: 1.45, zIndex: 6, maxWidth: 250 }} />
             <div style={{ position: "absolute", top: 16, left: 16, zIndex: 4, background: "rgba(255,254,251,.94)", border: "1px solid #d8d3c7", borderRadius: 11, padding: "12px 15px", display: "flex", gap: 24, whiteSpace: "nowrap" }}>

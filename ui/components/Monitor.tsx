@@ -122,7 +122,7 @@ export function Monitor() {
       </div>
 
       {vista === "mapa" && (
-        <div style={{ margin: "0 -28px" }}>
+        <div className="lup-mapa-wrap" style={{ margin: "0 -28px" }}>
           <MapaClient cat={cat} dep={dep} onVerAnalisis={setSel} />
         </div>
       )}
