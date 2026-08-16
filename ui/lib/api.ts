@@ -80,6 +80,12 @@ export const auth = {
 
 export interface Suscripcion { id: number; departamento: string | null; municipio: string | null }
 export interface PerfilEmpresa { tiene_empresa: boolean; nit: string | null; intereses: string[] }
+export interface DocumentoSecop { doc_id: string; nombre: string; tipo: string; tam: number }
+export interface AnalisisDocs {
+  resumen: string; coherencia_objeto: string; analisis_precios: string;
+  inconsistencias: string; nivel_alerta: string; banderas: string[];
+  documentos_analizados?: string[];
+}
 export interface Convocatoria {
   afinidad: number; id_del_proceso: string; referencia: string | null;
   entidad: string; departamento: string; ciudad: string | null;
@@ -107,4 +113,15 @@ export const lupia = {
     api<{ ok: boolean; enviadas: number }>("/empresa/convocatorias/enviar", { method: "POST" }),
   chat: (pregunta: string) =>
     api<{ respuesta: string }>("/ia/chat", { method: "POST", body: JSON.stringify({ pregunta }) }),
+  documentos: (id: string) =>
+    api<{ notice_uid: string | null; documentos: DocumentoSecop[]; desde_cache: boolean }>(
+      `/contratos/${encodeURIComponent(id)}/documentos`),
+  analizarDocumentos: (id: string) =>
+    api<{ analisis: AnalisisDocs; desde_cache: boolean }>(
+      `/contratos/${encodeURIComponent(id)}/documentos/analizar`, { method: "POST" }),
+  // rutas directas para <a href> (descarga binaria vía el proxy, sin token)
+  urlDescargarDoc: (id: string, docId: string) =>
+    `/lupia-api/contratos/${encodeURIComponent(id)}/documentos/${encodeURIComponent(docId)}/descargar`,
+  urlExportarDocs: (id: string) =>
+    `/lupia-api/contratos/${encodeURIComponent(id)}/documentos/exportar`,
 };

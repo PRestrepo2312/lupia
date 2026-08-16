@@ -3,7 +3,16 @@ import { Contrato, TrazaItem } from "@/lib/types";
 import { T, fmtM, riesgo, nivelLabel } from "@/lib/theme";
 import { useAuth } from "./AuthProvider";
 import { useEffect, useState } from "react";
-import { lupia } from "@/lib/api";
+import { AnalisisDocs, DocumentoSecop, lupia } from "@/lib/api";
+
+const fmtBytes = (n: number) => {
+  if (!n) return "";
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${Math.round(n / 1024)} KB`;
+  return `${(n / 1024 / 1024).toFixed(1)} MB`;
+};
+const colorAlerta = (nivel?: string) =>
+  nivel === "alto" ? T.alto : nivel === "medio" ? T.medio : T.bajo;
 
 function trazaDesdePerfil(p: any): TrazaItem[] {
   const items: TrazaItem[] = [];
@@ -23,6 +32,34 @@ export function ContractDetail({ c, onBack }: { c: Contrato; onBack: () => void 
   const [traza, setTraza] = useState<TrazaItem[] | null>(null);
   const [trazaError, setTrazaError] = useState(false);
   const color = riesgo(c.score);
+
+  // Documentos del expediente (SECOP II, sin captcha) + analisis con IA
+  const [docs, setDocs] = useState<DocumentoSecop[] | null>(null);
+  const [docsError, setDocsError] = useState<string | null>(null);
+  const [analisis, setAnalisis] = useState<AnalisisDocs | null>(null);
+  const [analizando, setAnalizando] = useState(false);
+  const [analisisError, setAnalisisError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setDocs(null); setDocsError(null); setAnalisis(null); setAnalisisError(null);
+    lupia.documentos(c.idContrato)
+      .then((r) => setDocs(r.documentos))
+      .catch((e: any) => setDocsError(e?.status === 404
+        ? "Este contrato no publica documentos electrónicos en SECOP II."
+        : "SECOP no respondió al buscar los documentos. Intenta de nuevo."));
+  }, [c.idContrato]);
+
+  const analizarDocumentos = async () => {
+    if (analizando) return;
+    setAnalizando(true); setAnalisisError(null);
+    try {
+      const r = await lupia.analizarDocumentos(c.idContrato);
+      setAnalisis(r.analisis);
+    } catch (e: any) {
+      setAnalisisError(e?.message || "No pude analizar los documentos, intenta de nuevo.");
+    }
+    setAnalizando(false);
+  };
 
   // Trazabilidad real del NIT (historial completo en SECOP II)
   useEffect(() => {
@@ -119,6 +156,97 @@ export function ContractDetail({ c, onBack }: { c: Contrato; onBack: () => void 
                 ))}
               </div>
             </div>
+          </div>
+
+          <div style={{ ...card, padding: "22px 26px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4, flexWrap: "wrap" }}>
+              <div style={{ fontFamily: T.mono, fontSize: 10.5, letterSpacing: "0.06em", color: T.muted }}>DOCUMENTOS DEL EXPEDIENTE · SECOP II</div>
+              {docs && docs.length > 0 && (
+                <a href={lupia.urlExportarDocs(c.idContrato)} className="lup-card"
+                  style={{ marginLeft: "auto", border: "1px solid #d8d3c7", background: T.surface, color: T.ink, fontSize: 12, fontWeight: 600, padding: "6px 12px", borderRadius: 8, display: "inline-flex", alignItems: "center", gap: 7 }}>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" /></svg>
+                  Descargar todo (ZIP)
+                </a>
+              )}
+            </div>
+            <div style={{ fontSize: 13, color: T.muted, lineHeight: 1.55, marginBottom: 16 }}>
+              Los archivos reales que la entidad publicó: resoluciones, contrato, estudios previos, cotizaciones. Los traemos directo de SECOP II.
+            </div>
+
+            {docs === null && !docsError && (
+              <div style={{ fontSize: 13, color: T.muted }}>Buscando documentos del proceso…</div>
+            )}
+            {docsError && <div style={{ fontSize: 13, color: T.muted }}>{docsError}</div>}
+            {docs && docs.length === 0 && (
+              <div style={{ fontSize: 13, color: T.muted }}>El proceso no tiene documentos electrónicos públicos.</div>
+            )}
+
+            {docs && docs.length > 0 && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {docs.map((d) => (
+                  <div key={d.doc_id} style={{ display: "flex", alignItems: "center", gap: 12, border: `1px solid ${T.line}`, borderRadius: 9, padding: "11px 14px" }}>
+                    <span style={{ fontFamily: T.mono, fontSize: 9.5, color: T.ia, background: "#eef3f6", padding: "3px 7px", borderRadius: 4, textTransform: "uppercase", whiteSpace: "nowrap" }}>
+                      {(d.nombre.split(".").pop() || "doc").slice(0, 4)}
+                    </span>
+                    <span style={{ flex: 1, fontSize: 13.5, color: T.ink2, lineHeight: 1.35, wordBreak: "break-word" }}>{d.nombre}</span>
+                    {d.tam ? <span style={{ fontFamily: T.mono, fontSize: 11, color: T.faint, whiteSpace: "nowrap" }}>{fmtBytes(d.tam)}</span> : null}
+                    <a href={lupia.urlDescargarDoc(c.idContrato, d.doc_id)} title="Descargar este documento"
+                      style={{ border: "1px solid #d8d3c7", background: T.surface, color: T.ink, fontSize: 12, fontWeight: 600, padding: "6px 11px", borderRadius: 7, whiteSpace: "nowrap" }}>Descargar</a>
+                  </div>
+                ))}
+
+                <div style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+                  <button onClick={analizarDocumentos} disabled={analizando}
+                    style={{ border: "none", background: T.ia, color: T.surface, fontSize: 13.5, fontWeight: 600, padding: "11px 18px", borderRadius: 9, cursor: "pointer", opacity: analizando ? 0.75 : 1, display: "inline-flex", alignItems: "center", gap: 8 }}>
+                    {analizando ? "Leyendo los documentos con IA…" : analisis ? "Volver a analizar" : "Analizar documentos con IA"}
+                  </button>
+                  <span style={{ fontSize: 12, color: T.faint, maxWidth: 320 }}>
+                    La IA lee el texto, cruza objeto y valores, y busca precios inflados o inconsistencias.
+                  </span>
+                </div>
+                {analisisError && <div style={{ fontSize: 12.5, color: T.alto }}>{analisisError}</div>}
+              </div>
+            )}
+
+            {analisis && (
+              <div style={{ marginTop: 16, border: `1px solid ${T.line}`, borderRadius: 11, overflow: "hidden", animation: "lupFade .3s ease both" }}>
+                <div style={{ background: colorAlerta(analisis.nivel_alerta), color: T.surface, padding: "10px 18px", display: "flex", alignItems: "center", gap: 10 }}>
+                  <span style={{ fontFamily: T.mono, fontSize: 10.5, letterSpacing: "0.06em" }}>LECTURA DE LA IA</span>
+                  <span style={{ fontFamily: T.mono, fontSize: 10.5, marginLeft: "auto", textTransform: "uppercase" }}>NIVEL {analisis.nivel_alerta}</span>
+                </div>
+                <div style={{ padding: "18px 20px", display: "flex", flexDirection: "column", gap: 14 }}>
+                  {([
+                    ["Resumen", analisis.resumen],
+                    ["Coherencia objeto vs. valor", analisis.coherencia_objeto],
+                    ["Precios vs. mercado", analisis.analisis_precios],
+                    ["Inconsistencias", analisis.inconsistencias],
+                  ] as [string, string][]).map(([k, v]) => v && (
+                    <div key={k}>
+                      <div style={{ fontFamily: T.mono, fontSize: 10, letterSpacing: "0.05em", color: T.muted, marginBottom: 4, textTransform: "uppercase" }}>{k}</div>
+                      <div style={{ fontSize: 13.5, lineHeight: 1.55, color: T.ink2 }}>{v}</div>
+                    </div>
+                  ))}
+                  {analisis.banderas?.length > 0 && (
+                    <div>
+                      <div style={{ fontFamily: T.mono, fontSize: 10, letterSpacing: "0.05em", color: T.muted, marginBottom: 6, textTransform: "uppercase" }}>Puntos por verificar</div>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+                        {analisis.banderas.map((b, i) => (
+                          <div key={i} style={{ display: "flex", gap: 9, fontSize: 13, lineHeight: 1.5, color: T.ink2 }}>
+                            <span style={{ color: colorAlerta(analisis.nivel_alerta), fontWeight: 700 }}>◆</span>
+                            <span>{b}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {analisis.documentos_analizados && (
+                    <div style={{ fontSize: 11, color: T.faint, borderTop: `1px solid ${T.lineSoft}`, paddingTop: 10 }}>
+                      Analizado sobre: {analisis.documentos_analizados.join(" · ")}. La IA señala, no acusa; verifica en la fuente.
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
 
           {c.evidencia && (

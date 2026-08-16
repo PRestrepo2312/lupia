@@ -9,3 +9,6 @@ streamlit
 psycopg2-binary
 pyjwt
 email-validator
+pdfplumber
+python-docx
+openpyxl

@@ -3,13 +3,18 @@
 Correr desde la raiz del proyecto:
     uvicorn api.main:app --reload --port 8010
 """
+import io
 import json
+import zipfile
+from urllib.parse import quote
 
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel
 
-from engine import config, convocatorias, correo, db, ia, ingesta, proveedores, senales
+from engine import (config, convocatorias, correo, db, documentos, ia, ingesta,
+                    proveedores, senales)
 
 from api.auth import router as auth_router, usuario_actual
 
@@ -141,6 +146,135 @@ def detalle_contrato(id_contrato: str):
     contrato["datos_json"] = json.loads(contrato.get("datos_json") or "{}")
     contrato["alertas"] = alertas
     return contrato
+
+
+# ---------- documentos del expediente (SECOP II sin captcha) ----------
+
+def _contrato_o_404(conn, id_contrato: str) -> dict:
+    c = conn.execute("SELECT * FROM contratos WHERE id_contrato = ?", (id_contrato,)).fetchone()
+    if not c:
+        raise HTTPException(404, "Contrato no encontrado")
+    return dict(c)
+
+
+def _notice_uid_de(contrato: dict) -> str:
+    uid = documentos.notice_uid_desde_url(contrato.get("urlproceso"))
+    if not uid:
+        raise HTTPException(404, "Este contrato no tiene un proceso SECOP con documentos publicos")
+    return uid
+
+
+@app.get("/contratos/{id_contrato}/documentos")
+def listar_documentos(id_contrato: str, refrescar: bool = False):
+    """Lista los documentos del expediente (nombre, tipo, tamano). Cachea metadata."""
+    with db.get_conn() as conn:
+        contrato = _contrato_o_404(conn, id_contrato)
+        if not refrescar:
+            cache = [dict(f) for f in conn.execute(
+                "SELECT doc_id, nombre, tipo, tam FROM documentos_cache "
+                "WHERE id_contrato = ? ORDER BY doc_id", (id_contrato,))]
+            if cache:
+                uid = documentos.notice_uid_desde_url(contrato.get("urlproceso"))
+                return {"notice_uid": uid, "documentos": cache, "desde_cache": True}
+        uid = _notice_uid_de(contrato)
+    try:
+        docs = documentos.listar(uid)
+    except Exception:
+        raise HTTPException(503, "SECOP no respondio al listar los documentos, intenta de nuevo")
+    with db.get_conn() as conn:
+        for d in docs:
+            conn.execute(
+                "INSERT INTO documentos_cache (id_contrato, notice_uid, doc_id, nombre, tipo, tam) "
+                "VALUES (?,?,?,?,?,?) ON CONFLICT (id_contrato, doc_id) DO UPDATE SET "
+                "nombre=excluded.nombre, tipo=excluded.tipo, tam=excluded.tam",
+                (id_contrato, uid, d["doc_id"], d["nombre"], d["tipo"], d["tam"]),
+            )
+    return {"notice_uid": uid, "documentos": docs, "desde_cache": False}
+
+
+@app.get("/contratos/{id_contrato}/documentos/{doc_id}/descargar")
+def descargar_documento(id_contrato: str, doc_id: str):
+    """Proxy de descarga: entrega el archivo original de SECOP con su nombre real."""
+    try:
+        nombre, tipo, contenido = documentos.descargar(doc_id)
+    except Exception:
+        raise HTTPException(502, "No pude traer el documento desde SECOP")
+    cab = f"attachment; filename*=UTF-8''{quote(nombre)}"
+    return Response(content=contenido, media_type=tipo or "application/octet-stream",
+                    headers={"Content-Disposition": cab})
+
+
+@app.get("/contratos/{id_contrato}/documentos/exportar")
+def exportar_documentos(id_contrato: str):
+    """Empaqueta todos los documentos del expediente en un ZIP para mapearlos aparte."""
+    with db.get_conn() as conn:
+        contrato = _contrato_o_404(conn, id_contrato)
+        uid = _notice_uid_de(contrato)
+    try:
+        docs = documentos.listar(uid)
+    except Exception:
+        raise HTTPException(503, "SECOP no respondio, intenta de nuevo")
+    if not docs:
+        raise HTTPException(404, "El proceso no tiene documentos publicos")
+    buffer = io.BytesIO()
+    sesion = documentos._session()
+    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as zf:
+        usados: set[str] = set()
+        for d in docs:
+            try:
+                nombre, _tipo, contenido = documentos.descargar(d["doc_id"], sesion)
+            except Exception:
+                continue
+            if nombre in usados:
+                nombre = f"{d['doc_id']}_{nombre}"
+            usados.add(nombre)
+            zf.writestr(nombre, contenido)
+    buffer.seek(0)
+    cab = f"attachment; filename=expediente_{uid}.zip"
+    return StreamingResponse(buffer, media_type="application/zip",
+                             headers={"Content-Disposition": cab})
+
+
+@app.post("/contratos/{id_contrato}/documentos/analizar")
+def analizar_documentos(id_contrato: str, refrescar: bool = False, maximo: int = 6):
+    """Descarga los documentos, extrae su texto y cruza objeto/valores/precios con IA."""
+    with db.get_conn() as conn:
+        contrato = _contrato_o_404(conn, id_contrato)
+        if not refrescar:
+            fila = conn.execute(
+                "SELECT analisis FROM analisis_docs_cache WHERE id_contrato = ?",
+                (id_contrato,)).fetchone()
+            if fila and fila["analisis"]:
+                return {"analisis": json.loads(fila["analisis"]), "desde_cache": True}
+        uid = _notice_uid_de(contrato)
+    try:
+        docs = documentos.listar(uid)[:maximo]
+        docs = documentos.descargar_y_extraer(docs)
+    except Exception:
+        raise HTTPException(503, "SECOP no respondio al traer los documentos")
+    with db.get_conn() as conn:
+        for d in docs:
+            conn.execute(
+                "INSERT INTO documentos_cache (id_contrato, notice_uid, doc_id, nombre, tipo, tam, texto) "
+                "VALUES (?,?,?,?,?,?,?) ON CONFLICT (id_contrato, doc_id) DO UPDATE SET "
+                "nombre=excluded.nombre, tipo=excluded.tipo, tam=excluded.tam, texto=excluded.texto",
+                (id_contrato, uid, d["doc_id"], d.get("nombre"), d.get("tipo"),
+                 d.get("tam"), d.get("texto")),
+            )
+    con_texto = [d for d in docs if (d.get("texto") or "").strip()]
+    if not con_texto:
+        raise HTTPException(422, "Los documentos no tienen texto legible para analizar (pueden ser imagenes escaneadas)")
+    analisis = ia.analizar_documentos(contrato, con_texto)
+    if analisis is None:
+        raise HTTPException(503, "IA no disponible (modo demo o sin credenciales)")
+    analisis["documentos_analizados"] = [d.get("nombre") for d in con_texto]
+    with db.get_conn() as conn:
+        conn.execute(
+            "INSERT INTO analisis_docs_cache (id_contrato, analisis) VALUES (?,?) "
+            "ON CONFLICT (id_contrato) DO UPDATE SET analisis=excluded.analisis",
+            (id_contrato, json.dumps(analisis, ensure_ascii=False)),
+        )
+    return {"analisis": analisis, "desde_cache": False}
 
 
 # ---------- IA ----------

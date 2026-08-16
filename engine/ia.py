@@ -21,6 +21,20 @@ ESQUEMA_PERTINENCIA = {
     "additionalProperties": False,
 }
 
+ESQUEMA_ANALISIS_DOCS = {
+    "type": "object",
+    "properties": {
+        "resumen": {"type": "string", "description": "Que contienen los documentos del proceso y que tan completo esta el expediente, en 2 frases"},
+        "coherencia_objeto": {"type": "string", "description": "Si lo que dicen los documentos (objeto, cantidades, valor) coincide con el objeto y el valor del contrato registrado"},
+        "analisis_precios": {"type": "string", "description": "Si hay cotizaciones, precios unitarios o estudio de mercado: compara con un rango de mercado razonable y di si lucen inflados o normales. Si NO hay precios en los documentos, dilo con franqueza"},
+        "inconsistencias": {"type": "string", "description": "Fechas, montos, firmas o datos que no cuadran entre los documentos o contra el contrato. Si no se detectan, dilo"},
+        "nivel_alerta": {"type": "string", "description": "una sola palabra: bajo, medio o alto"},
+        "banderas": {"type": "array", "items": {"type": "string"}, "description": "Lista corta (0 a 5) de puntos concretos que un ciudadano deberia verificar"},
+    },
+    "required": ["resumen", "coherencia_objeto", "analisis_precios", "inconsistencias", "nivel_alerta", "banderas"],
+    "additionalProperties": False,
+}
+
 ESQUEMA_EXTRACCION = {
     "type": "object",
     "properties": {
@@ -81,20 +95,26 @@ def _extraer_json(texto: str | None) -> dict | None:
             return None
 
 
+def _ejemplo_valor(prop: dict):
+    tipo = prop.get("type")
+    tipos = tipo if isinstance(tipo, list) else [tipo]
+    if "integer" in tipos or "number" in tipos:
+        return 0
+    if "boolean" in tipos:
+        return False
+    if "array" in tipos:
+        items = prop.get("items", {"type": "string"})
+        return [_ejemplo_valor(items), _ejemplo_valor(items)]
+    if "object" in tipos:
+        return {k: _ejemplo_valor(p) for k, p in prop.get("properties", {}).items()}
+    return prop.get("description", "texto")
+
+
 def _ejemplo_de(esquema: dict) -> dict:
     """Instancia de ejemplo a partir del esquema (los modelos chicos siguen mejor
     un ejemplo concreto que un JSON Schema, que tienden a repetir)."""
-    ejemplo = {}
-    for llave, prop in esquema.get("properties", {}).items():
-        tipo = prop.get("type")
-        tipos = tipo if isinstance(tipo, list) else [tipo]
-        if "integer" in tipos or "number" in tipos:
-            ejemplo[llave] = 0
-        elif "boolean" in tipos:
-            ejemplo[llave] = False
-        else:
-            ejemplo[llave] = prop.get("description", "texto")
-    return ejemplo
+    return {llave: _ejemplo_valor(prop)
+            for llave, prop in esquema.get("properties", {}).items()}
 
 
 def _llamar_json(system: str, usuario: str, esquema: dict, max_tokens: int = 1024) -> dict | None:
@@ -156,6 +176,35 @@ def responder_chat(pregunta: str, contexto: dict) -> str | None:
     if resp.stop_reason == "refusal":
         return None
     return next((b.text for b in resp.content if b.type == "text"), None)
+
+
+def analizar_documentos(contrato: dict, documentos: list[dict]) -> dict | None:
+    """Lee los documentos del expediente y cruza objeto, valores y precios con IA."""
+    docs_ctx = []
+    presupuesto = 24000  # total de caracteres de texto que mandamos a la IA
+    for d in documentos:
+        texto = (d.get("texto") or "").strip()
+        if not texto:
+            continue
+        recorte = texto[: min(len(texto), presupuesto)]
+        presupuesto -= len(recorte)
+        docs_ctx.append({"documento": d.get("nombre"), "extracto": recorte})
+        if presupuesto <= 0:
+            break
+    if not docs_ctx:
+        return None
+    contexto = json.dumps(
+        {
+            "contrato": {k: contrato.get(k) for k in (
+                "nombre_entidad", "departamento", "ciudad", "descripcion_del_proceso",
+                "objeto_del_contrato", "valor_del_contrato", "proveedor_adjudicado",
+                "modalidad_de_contratacion", "fecha_de_firma")},
+            "documentos_del_expediente": docs_ctx,
+        },
+        ensure_ascii=False,
+    )
+    return _llamar_json(_leer_prompt("documentos"), contexto, ESQUEMA_ANALISIS_DOCS,
+                        max_tokens=1500)
 
 
 def explicar_alerta(contrato: dict, alertas: list[dict]) -> str | None:
