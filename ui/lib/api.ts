@@ -107,6 +107,7 @@ export const lupia = {
     api<{ departamento: string; contratos: number; total: number; alertas: number }[]>(
       `/resumen${soloEmergencia ? "?solo_emergencia=1" : ""}`),
   proveedor: (nit: string) => api(`/proveedores/${encodeURIComponent(nit)}`),
+  detalle: (id: string) => api<any>(`/contratos/${encodeURIComponent(id)}`),
   suscribir: (correo: string, departamento?: string | null) =>
     api("/suscripciones", { method: "POST", body: JSON.stringify({ correo, departamento }) }),
   misSuscripciones: () => api<Suscripcion[]>("/suscripciones/mias"),

@@ -14,6 +14,31 @@ const fmtBytes = (n: number) => {
 const colorAlerta = (nivel?: string) =>
   nivel === "alto" ? T.alto : nivel === "medio" ? T.medio : T.bajo;
 
+const fecha10 = (v?: string) => (v ? v.slice(0, 10) : null);
+const pesos = (v: any) => {
+  const n = parseFloat(v);
+  return isNaN(n) || n === 0 ? null : "$" + Math.round(n).toLocaleString("es-CO");
+};
+// Campos del procedimiento con etiqueta legible y cómo se muestran
+const CAMPOS_TEXTO: [string, string][] = [
+  ["Referencia", "referencia_del_contrato"], ["Tipo de contrato", "tipo_de_contrato"],
+  ["Modalidad", "modalidad_de_contratacion"], ["Justificación de la modalidad", "justificacion_modalidad_de"],
+  ["Categoría UNSPSC", "codigo_de_categoria_principal"], ["Estado", "estado_contrato"],
+  ["Sector", "sector"], ["Rama", "rama"], ["Origen de los recursos", "origen_de_los_recursos"],
+  ["Destino del gasto", "destino_gasto"], ["Entidad", "nombre_entidad"], ["NIT de la entidad", "nit_entidad"],
+  ["Proveedor", "proveedor_adjudicado"], ["Documento del proveedor", "documento_proveedor"],
+  ["¿Es PYME?", "es_pyme"], ["Supervisor", "nombre_supervisor"],
+  ["Dirección de ejecución", "direcci_n_de_ejecuci_n_del_contrato"],
+  ["Condiciones de entrega", "condiciones_de_entrega"],
+];
+const CAMPOS_FECHA: [string, string][] = [
+  ["Firma", "fecha_de_firma"], ["Inicio", "fecha_de_inicio_del_contrato"], ["Terminación", "fecha_de_fin_del_contrato"],
+];
+const CAMPOS_VALOR: [string, string][] = [
+  ["Valor del contrato", "valor_del_contrato"], ["Facturado", "valor_facturado"],
+  ["Pagado", "valor_pagado"], ["Pendiente de pago", "valor_pendiente_de_pago"],
+];
+
 function trazaDesdePerfil(p: any): TrazaItem[] {
   const items: TrazaItem[] = [];
   const reg = p.registro_proveedor?.[0];
@@ -33,6 +58,13 @@ export function ContractDetail({ c, onBack }: { c: Contrato; onBack: () => void 
   const [traza, setTraza] = useState<TrazaItem[] | null>(null);
   const [trazaError, setTrazaError] = useState(false);
   const color = riesgo(c.score);
+
+  // Resumen del procedimiento (campos estructurados del contrato en SECOP II)
+  const [resumen, setResumen] = useState<Record<string, any> | null>(null);
+  useEffect(() => {
+    setResumen(null);
+    lupia.detalle(c.idContrato).then((d) => setResumen(d?.datos_json ?? {})).catch(() => setResumen({}));
+  }, [c.idContrato]);
 
   // Documentos del expediente (SECOP II, sin captcha) + analisis con IA
   const [docs, setDocs] = useState<DocumentoSecop[] | null>(null);
@@ -168,6 +200,52 @@ C.C. · correo de notificación`;
               ))}
             </div>
           </div>
+
+          {resumen && Object.keys(resumen).length > 0 && (() => {
+            const textos = CAMPOS_TEXTO.map(([l, k]) => [l, resumen[k]] as [string, any]).filter(([, v]) => v && String(v).trim() && String(v).toLowerCase() !== "no definido");
+            const fechas = CAMPOS_FECHA.map(([l, k]) => [l, fecha10(resumen[k])] as [string, any]).filter(([, v]) => v);
+            const valores = CAMPOS_VALOR.map(([l, k]) => [l, pesos(resumen[k])] as [string, any]).filter(([, v]) => v);
+            const fuentes = ([
+              ["Sistema General de Regalías", "sistema_general_de_regal_as"],
+              ["Sistema General de Participaciones", "sistema_general_de_participaciones"],
+              ["Presupuesto General de la Nación", "presupuesto_general_de_la_nacion_pgn"],
+              ["Recursos propios", "recursos_propios"], ["Recursos de crédito", "recursos_de_credito"],
+            ] as [string, string][]).map(([l, k]) => [l, pesos(resumen[k])] as [string, any]).filter(([, v]) => v);
+            return (
+              <div style={{ ...card, padding: "20px 24px" }}>
+                <div style={{ fontFamily: T.mono, fontSize: 10.5, letterSpacing: "0.06em", color: T.muted, marginBottom: 4 }}>RESUMEN DEL PROCEDIMIENTO · SECOP II</div>
+                <div style={{ fontSize: 12.5, color: T.faint, marginBottom: 16 }}>Los datos oficiales que la entidad publicó del proceso.</div>
+                {(fechas.length > 0 || valores.length > 0) && (
+                  <div style={{ display: "flex", gap: 24, flexWrap: "wrap", paddingBottom: 16, marginBottom: 16, borderBottom: `1px solid ${T.lineSoft}` }}>
+                    {valores.map(([l, v]) => (
+                      <div key={l}><div style={{ fontFamily: T.mono, fontSize: 9.5, color: T.muted, marginBottom: 3 }}>{l.toUpperCase()}</div><div style={{ fontSize: 15, fontWeight: 700 }}>{v}</div></div>
+                    ))}
+                    {fechas.map(([l, v]) => (
+                      <div key={l}><div style={{ fontFamily: T.mono, fontSize: 9.5, color: T.muted, marginBottom: 3 }}>{l.toUpperCase()}</div><div style={{ fontSize: 14, fontWeight: 600 }}>{v}</div></div>
+                    ))}
+                  </div>
+                )}
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px 24px" }} className="perfil-grid">
+                  {textos.map(([l, v]) => (
+                    <div key={l} style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                      <span style={{ fontFamily: T.mono, fontSize: 9.5, color: T.muted, textTransform: "uppercase" }}>{l}</span>
+                      <span style={{ fontSize: 13.5, color: T.ink2, lineHeight: 1.4 }}>{String(v)}</span>
+                    </div>
+                  ))}
+                </div>
+                {fuentes.length > 0 && (
+                  <div style={{ marginTop: 16, paddingTop: 14, borderTop: `1px solid ${T.lineSoft}` }}>
+                    <div style={{ fontFamily: T.mono, fontSize: 9.5, color: T.muted, marginBottom: 8 }}>FUENTES DE FINANCIACIÓN</div>
+                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                      {fuentes.map(([l, v]) => (
+                        <span key={l} style={{ fontSize: 12.5, color: T.ink2, border: `1px solid ${T.line}`, borderRadius: 8, padding: "6px 10px" }}>{l}: <strong>{v}</strong></span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
 
           <div style={{ background: T.surface, border: `1px solid ${T.ia}`, borderRadius: 12, overflow: "hidden" }}>
             <div style={{ background: T.ia, color: T.surface, padding: "11px 22px", display: "flex", alignItems: "center", gap: 10 }}>

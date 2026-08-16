@@ -6,11 +6,14 @@ Correr desde la raiz del proyecto:
 import io
 import json
 import zipfile
+from pathlib import Path
 from urllib.parse import quote
 
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.openapi.docs import get_redoc_html, get_swagger_ui_html
 from fastapi.responses import Response, StreamingResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from engine import (config, convocatorias, correo, db, documentos, ia, ingesta,
@@ -18,13 +21,40 @@ from engine import (config, convocatorias, correo, db, documentos, ia, ingesta,
 
 from api.auth import router as auth_router, usuario_actual
 
+# Swagger/Redoc auto-alojados: las redes que bloquean el CDN (jsdelivr) igual
+# ven la documentacion. Se desactivan las urls por defecto y se sirven local.
 app = FastAPI(
     title="LupIA API",
     description=(
         "La lupa ciudadana sobre la plata de la reconstruccion. "
         "LupIA no acusa: senala lo que amerita revision, con datos oficiales."
     ),
+    docs_url=None,
+    redoc_url=None,
 )
+
+_STATIC_DIR = Path(__file__).resolve().parent / "static"
+if _STATIC_DIR.exists():
+    app.mount("/static", StaticFiles(directory=str(_STATIC_DIR)), name="static")
+
+
+@app.get("/docs", include_in_schema=False)
+def swagger_ui():
+    return get_swagger_ui_html(
+        openapi_url=app.openapi_url,
+        title="LupIA API · Documentación",
+        swagger_js_url="/static/swagger-ui-bundle.js",
+        swagger_css_url="/static/swagger-ui.css",
+    )
+
+
+@app.get("/redoc", include_in_schema=False)
+def redoc_ui():
+    return get_redoc_html(
+        openapi_url=app.openapi_url,
+        title="LupIA API · Documentación",
+        redoc_js_url="/static/redoc.standalone.js",
+    )
 
 app.add_middleware(
     CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"],
