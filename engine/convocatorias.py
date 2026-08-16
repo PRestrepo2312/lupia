@@ -186,11 +186,18 @@ def buscar(nit: str | None, solo_afines: bool = True) -> list[dict]:
     hoy = time.time()
 
     resultado = []
+    vistos: set = set()
     for p in procesos:
         afinidad, razones = _afinidad(p, matching, deptos_emergencia, hoy)
         if solo_afines and afinidad < 40:
             continue
-        resultado.append(_fila(p, afinidad, razones))
+        fila = _fila(p, afinidad, razones)
+        # el dataset repite procesos (fases/lotes): dedup por objeto+entidad+valor
+        clave = (_sin_acentos(fila["objeto"] or ""), fila["entidad"], round(fila["precio_base"]))
+        if clave in vistos:
+            continue
+        vistos.add(clave)
+        resultado.append(fila)
 
     resultado.sort(key=lambda x: (-x["afinidad"], -x["precio_base"]))
     top = resultado[: 10 if solo_afines else 40]
