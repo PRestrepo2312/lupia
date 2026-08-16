@@ -139,7 +139,7 @@ export default function Page() {
 
       <div style={{ ...card, padding: "20px 22px", marginBottom: 8, display: "flex", gap: 14, alignItems: "center", flexWrap: "wrap" }}>
         <div style={{ fontFamily: T.mono, fontSize: 10.5, color: T.muted }}>NIT</div>
-        <input value={nit} onChange={(e) => setNit(e.target.value.replace(/[^\d.-]/g, ""))} onKeyDown={(e) => e.key === "Enter" && buscar()} placeholder="Ej: 860077014" inputMode="numeric"
+        <input value={nit} onChange={(e) => setNit(e.target.value.replace(/[^\d.-]/g, ""))} onKeyDown={(e) => e.key === "Enter" && buscar()} placeholder="123456789" inputMode="numeric"
           style={{ fontFamily: T.mono, fontSize: 15, border: "1px solid #d8d3c7", borderRadius: 8, padding: "10px 14px", background: "#f9f8f4", minWidth: 240 }} />
         <button onClick={() => buscar()} disabled={cargando} style={{ border: "none", background: T.ink, color: T.surface, fontSize: 13.5, fontWeight: 600, padding: "11px 18px", borderRadius: 8, cursor: "pointer", opacity: cargando ? 0.7 : 1 }}>
           {cargando ? "Consultando SECOP…" : modo === "mia" ? "Armar mi perfil" : "Consultar historial"}
@@ -149,8 +149,8 @@ export default function Page() {
       <div style={{ display: "flex", gap: 10, fontSize: 12.5, color: T.faint, lineHeight: 1.6, margin: "0 4px 22px", maxWidth: 760 }}>
         <span style={{ fontFamily: T.mono, fontSize: 9.5, letterSpacing: "0.06em", color: T.muted, border: `1px solid ${T.line}`, borderRadius: 4, padding: "2px 6px", height: "fit-content", whiteSpace: "nowrap" }}>CÓMO</span>
         <span>
-          Escribe solo los números del NIT, <strong>sin el dígito de verificación</strong> (si tu NIT es
-          860.077.014-9, escribe 860077014). Consultamos el historial completo de esa empresa en
+          Escribe solo los números del NIT, <strong>sin el dígito de verificación</strong> (el que va después
+          del guion). Consultamos el historial completo de esa empresa en
           SECOP II: contratos, entidades, valores y fechas. Cubre procesos electrónicos (~2018 en adelante).
         </span>
       </div>
@@ -162,7 +162,7 @@ export default function Page() {
             <span style={{ fontFamily: T.mono, fontSize: 10, background: "#eef3f6", color: T.ia, padding: "3px 8px", borderRadius: 4 }}>PERFIL REAL · SECOP II</span>
             {reg?.espyme === "SI" && <span style={{ fontFamily: T.mono, fontSize: 10, background: "#f2f6f3", color: T.bajo, padding: "3px 8px", borderRadius: 4 }}>PYME</span>}
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 18 }}>
+          <div className="lup-empresa-kpis" style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 18 }}>
             <div>
               <div style={{ fontFamily: T.mono, fontSize: 10, color: T.muted, marginBottom: 5 }}>CONTRATOS</div>
               <div style={{ fontSize: 22, fontWeight: 700 }}>{perfil.totales.contratos}</div>

@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import { Contrato } from "@/lib/types";
 import { getContratos, lupia } from "@/lib/api";
-import { CATEGORIAS, DEPARTAMENTOS, GLIFOS, EVENTOS } from "@/lib/data";
+import { DEPARTAMENTOS } from "@/lib/data";
 import { T, fmtM, riesgo, nivelLabel } from "@/lib/theme";
 import { ContractDetail } from "./ContractDetail";
 
@@ -20,12 +20,16 @@ export function Monitor() {
   const [deptosConSenales, setDeptosConSenales] = useState<number | null>(null);
   const [cat, setCat] = useState<string>("Todas");
   const [dep, setDep] = useState<string>("Todos");
-  const [evento, setEvento] = useState<string>("Todos los eventos");
   const [sel, setSel] = useState<string | null>(null);
   const [vista, setVista] = useState<"tabla" | "mapa">("tabla");
   const [pagina, setPagina] = useState(1);
 
-  useEffect(() => { setPagina(1); }, [cat, dep, evento]);
+  useEffect(() => { setPagina(1); }, [cat, dep]);
+
+  // Categorías = tipos de contrato reales de SECOP presentes en la data
+  const categorias = useMemo(
+    () => Array.from(new Set(data.map((c) => c.cat).filter(Boolean))).sort(),
+    [data]);
 
   useEffect(() => {
     getContratos().then(setData);
@@ -39,10 +43,8 @@ export function Monitor() {
   const norm = (s: string) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
   const depOk = (d: string) => dep === "Todos" || !dep.trim() || d === dep || norm(d).includes(norm(dep));
   const visibles = useMemo(() => data
-    .filter((c) => (cat === "Todas" || c.cat === cat)
-      && depOk(c.dept)
-      && (cat !== "Emergencias y desastres" || evento === "Todos los eventos" || c.evento === evento))
-    .sort((a, b) => b.score - a.score), [data, cat, dep, evento]);
+    .filter((c) => (cat === "Todas" || c.cat === cat) && depOk(c.dept))
+    .sort((a, b) => b.score - a.score), [data, cat, dep]);
 
   const totalPaginas = Math.max(1, Math.ceil(visibles.length / POR_PAGINA));
   const paginados = visibles.slice((pagina - 1) * POR_PAGINA, pagina * POR_PAGINA);
@@ -70,7 +72,7 @@ export function Monitor() {
         <div style={{ fontFamily: T.mono, fontSize: 11, color: T.muted, textAlign: "right", lineHeight: 1.7 }}>{salud ? "● Sincronizado con SECOP II" : "Vista de ejemplo · sin conexión"}<br />Fuente oficial: datos.gov.co</div>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 1, background: T.line, border: `1px solid ${T.line}`, borderRadius: 12, overflow: "hidden", marginBottom: 30 }}>
+      <div className="lup-kpis" style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 1, background: T.line, border: `1px solid ${T.line}`, borderRadius: 12, overflow: "hidden", marginBottom: 30 }}>
         {kpis.map((k) => (
           <div key={k.label} style={{ background: T.surface, padding: "20px 22px" }}>
             <div style={{ fontFamily: T.mono, fontSize: 10.5, letterSpacing: "0.06em", color: T.muted, marginBottom: 10 }}>{k.label}</div>
@@ -90,26 +92,28 @@ export function Monitor() {
             </button>
           ))}
         </div>
-        <select value={cat} onChange={(e) => { setCat(e.target.value); if (e.target.value !== "Emergencias y desastres") setEvento("Todos los eventos"); }}
-          title="Categorías de LupIA: agrupación propia calculada sobre el objeto de cada contrato (SECOP publica códigos UNSPSC, no estas categorías)"
+        <select value={cat} onChange={(e) => setCat(e.target.value)}
+          title="Tipo de contrato según SECOP II"
           style={{ fontSize: 13, color: T.ink2, border: "1px solid #d8d3c7", background: T.surface, borderRadius: 99, padding: "8px 12px", cursor: "pointer", maxWidth: 240 }}>
-          {["Todas", ...CATEGORIAS].map((c) => {
+          {["Todas", ...categorias].map((c) => {
             const lote = c === "Todas" ? data : data.filter((x) => x.cat === c);
-            return <option key={c} value={c}>{GLIFOS[c] ?? "◇"} {c === "Todas" ? "Todas las categorías" : c} ({lote.length})</option>;
+            return <option key={c} value={c}>{c === "Todas" ? "Todos los tipos de contrato" : c} ({lote.length})</option>;
           })}
         </select>
-        <input list="lupia-deptos" value={dep === "Todos" ? "" : dep}
-          onChange={(e) => setDep(e.target.value || "Todos")}
-          placeholder="Departamento (escribe o elige)"
-          title="Escribe parte del nombre (ej: 'risa' encuentra Risaralda) o elige de la lista"
-          style={{ fontSize: 13, color: T.ink2, border: "1px solid #d8d3c7", background: T.surface, borderRadius: 99, padding: "8px 14px", width: 220 }} />
+        <div style={{ position: "relative", display: "inline-flex", alignItems: "center" }}>
+          <input list="lupia-deptos" value={dep === "Todos" ? "" : dep}
+            onChange={(e) => setDep(e.target.value || "Todos")}
+            placeholder="Todos los departamentos"
+            title="Escribe parte del nombre (ej: 'risa' encuentra Risaralda) o elige de la lista"
+            style={{ fontSize: 13, color: T.ink2, border: "1px solid #d8d3c7", background: T.surface, borderRadius: 99, padding: dep !== "Todos" && dep.trim() ? "8px 30px 8px 14px" : "8px 14px", minWidth: 210 }} />
+          {dep !== "Todos" && dep.trim() && (
+            <button onClick={() => setDep("Todos")} title="Quitar filtro de departamento"
+              style={{ position: "absolute", right: 8, border: "none", background: "none", color: T.muted, fontSize: 13, padding: 0, cursor: "pointer", lineHeight: 1 }}>✕</button>
+          )}
+        </div>
         <datalist id="lupia-deptos">
           {DEPARTAMENTOS.map((d) => <option key={d} value={d} />)}
         </datalist>
-        {dep !== "Todos" && dep.trim() && (
-          <button onClick={() => setDep("Todos")} title="Quitar filtro de departamento"
-            style={{ border: "1px solid #d8d3c7", background: T.surface, color: T.muted, fontSize: 12, padding: "7px 11px", borderRadius: 99, cursor: "pointer" }}>✕</button>
-        )}
         {vista === "tabla" && (
           <span style={{ fontFamily: T.mono, fontSize: 11, color: T.muted, marginLeft: "auto" }}>
             {visibles.length} señales · pág. {pagina}/{totalPaginas}
@@ -117,19 +121,9 @@ export function Monitor() {
         )}
       </div>
 
-      {cat === "Emergencias y desastres" && vista === "tabla" && (
-        <div style={{ display: "flex", gap: 7, flexWrap: "wrap", alignItems: "center", marginBottom: 14 }}>
-          <span style={{ fontFamily: T.mono, fontSize: 10, color: T.muted, marginRight: 4 }}>EVENTO</span>
-          {["Todos los eventos", ...EVENTOS].map((e) => {
-            const on = evento === e;
-            return <button key={e} onClick={() => setEvento(e)} style={{ border: `1px ${on ? "solid" : "dashed"} ${on ? T.alto : "#d8d3c7"}`, background: on ? T.alto : T.surface, color: on ? T.surface : T.ink2, fontSize: 12, padding: "6px 12px", borderRadius: 99, cursor: "pointer" }}>{e}</button>;
-          })}
-        </div>
-      )}
-
       {vista === "mapa" && (
         <div style={{ margin: "0 -28px" }}>
-          <MapaClient cat={cat} dep={dep} evento={evento} onVerAnalisis={setSel} />
+          <MapaClient cat={cat} dep={dep} onVerAnalisis={setSel} />
         </div>
       )}
 
@@ -143,8 +137,8 @@ export function Monitor() {
         {paginados.map((c) => {
           const color = riesgo(c.score);
           return (
-            <div key={c.id} onClick={() => setSel(c.id)} className="lup-card" style={{ background: T.surface, border: `1px solid ${T.line}`, borderRadius: 12, padding: "20px 22px", display: "grid", gridTemplateColumns: "96px 1fr 210px", gap: 24, cursor: "pointer", animation: "lupFade .3s ease both" }}>
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
+            <div key={c.id} onClick={() => setSel(c.id)} className="lup-card lup-fila-contrato" style={{ background: T.surface, border: `1px solid ${T.line}`, borderRadius: 12, padding: "20px 22px", display: "grid", gridTemplateColumns: "96px 1fr 210px", gap: 24, cursor: "pointer", animation: "lupFade .3s ease both" }}>
+              <div className="lup-fila-score" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
                 <div style={{ fontSize: 34, fontWeight: 700, letterSpacing: "-0.04em", lineHeight: 1, color }}>{c.score}</div>
                 <div style={{ fontFamily: T.mono, fontSize: 9.5, letterSpacing: "0.06em", color, textAlign: "center" }}>{nivelLabel(c.score)}</div>
                 <div style={{ width: "100%", height: 3, background: T.lineSoft, borderRadius: 2, overflow: "hidden" }}>
@@ -164,7 +158,7 @@ export function Monitor() {
                   ))}
                 </div>
               </div>
-              <div style={{ borderLeft: `1px solid ${T.lineSoft}`, paddingLeft: 20, display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+              <div className="lup-fila-side" style={{ borderLeft: `1px solid ${T.lineSoft}`, paddingLeft: 20, display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
                 <div>
                   <div style={{ fontFamily: T.mono, fontSize: 10, color: T.muted, marginBottom: 4 }}>VALOR</div>
                   <div style={{ fontSize: 21, fontWeight: 700, letterSpacing: "-0.02em" }}>{fmtM(c.valor)}</div>

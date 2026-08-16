@@ -24,12 +24,14 @@ export function LoginModal({ motivo, onClose, onEntrar }: Props) {
   const [metodo, setMetodo] = useState<"codigo" | "clave">("codigo");
   const [correo, setCorreo] = useState("");
   const [clave, setClave] = useState("");
+  const [nombre, setNombre] = useState("");
   const [codigo, setCodigo] = useState("");
   const [nuevaClave, setNuevaClave] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [cargando, setCargando] = useState(false);
   const [modoDev, setModoDev] = useState(false);
   const [ofrecerRegistro, setOfrecerRegistro] = useState(false);
+  const [registrando, setRegistrando] = useState(false);
   const googleRef = useRef<HTMLDivElement | null>(null);
 
   const input: React.CSSProperties = { border: "1px solid #d8d3c7", background: T.surface, borderRadius: 9, padding: "12px 14px", fontSize: 14.5, color: T.ink2 };
@@ -93,7 +95,7 @@ export function LoginModal({ motivo, onClose, onEntrar }: Props) {
   });
 
   const crearCuenta = () => correr(async () => {
-    const r = await auth.registro(correo, clave);
+    const r = await auth.registro(correo, clave, nombre || undefined);
     onEntrar(r.token, r.usuario, "Cuenta creada, bienvenida/o a LupIA", true);
   });
 
@@ -120,8 +122,8 @@ export function LoginModal({ motivo, onClose, onEntrar }: Props) {
 
   return (
     <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(27,26,23,.5)", zIndex: 70, display: "flex", alignItems: "flex-start", justifyContent: "center", padding: 24, overflow: "auto" }}>
-      <div onClick={(e) => e.stopPropagation()} style={{ background: T.bg, borderRadius: 16, overflow: "hidden", maxWidth: 840, width: "100%", margin: "auto", display: "grid", gridTemplateColumns: "1fr 1fr", animation: "lupFade .2s ease both" }}>
-        <div style={{ background: T.ink, color: T.bg, padding: 32, display: "flex", flexDirection: "column", justifyContent: "space-between", gap: 26 }}>
+      <div onClick={(e) => e.stopPropagation()} className="lup-login" style={{ background: T.bg, borderRadius: 16, overflow: "hidden", maxWidth: 840, width: "100%", margin: "auto", display: "grid", gridTemplateColumns: "1fr 1fr", animation: "lupFade .2s ease both" }}>
+        <div className="lup-login-aside" style={{ background: T.ink, color: T.bg, padding: 32, display: "flex", flexDirection: "column", justifyContent: "space-between", gap: 26 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 11 }}>
             <div style={{ width: 28, height: 28, borderRadius: "50%", border: `2.5px solid ${T.bg}`, position: "relative" }}>
               <div style={{ position: "absolute", width: 2.5, height: 12, background: T.bg, bottom: -10, right: 0, transform: "rotate(-40deg)", transformOrigin: "top" }} />
@@ -133,7 +135,7 @@ export function LoginModal({ motivo, onClose, onEntrar }: Props) {
             <div style={{ fontSize: 24, lineHeight: 1.2, letterSpacing: "-0.03em", fontWeight: 700, marginBottom: 12 }}>El monitor es abierto. La cuenta es para lo tuyo.</div>
             <div style={{ fontSize: 13.5, lineHeight: 1.6, color: "#a8a49a" }}>El correo solo se usa para guardar tus territorios, mandarte alertas y mostrarte la trazabilidad de cada contrato.</div>
           </div>
-          <div style={{ fontFamily: T.mono, fontSize: 10.5, color: "#77736a", lineHeight: 1.7 }}>DATOS: SECOP II · DATOS.GOV.CO<br />CÓDIGOS DE UN SOLO USO · SESIÓN JWT</div>
+          <div style={{ fontFamily: T.mono, fontSize: 10.5, color: "#77736a", lineHeight: 1.7 }}>DATOS OFICIALES: SECOP II · DATOS.GOV.CO</div>
         </div>
 
         <div style={{ padding: 32, display: "flex", alignItems: "center" }}>
@@ -162,18 +164,31 @@ export function LoginModal({ motivo, onClose, onEntrar }: Props) {
                     </>
                   ) : (
                     <div>
+                      <div style={{ display: "flex", gap: 4, background: "#eae7de", borderRadius: 8, padding: 3, marginBottom: 12 }}>
+                        {([["entrar", "Ya tengo cuenta"], ["crear", "Crear cuenta"]] as const).map(([k, etq]) => {
+                          const on = (k === "crear") === registrando;
+                          return <button key={k} onClick={() => { setRegistrando(k === "crear"); setError(null); setOfrecerRegistro(false); }} style={{ flex: 1, border: "none", background: on ? T.surface : "transparent", color: on ? T.ink : T.muted, fontSize: 12.5, fontWeight: on ? 600 : 500, padding: 8, borderRadius: 6, cursor: "pointer" }}>{etq}</button>;
+                        })}
+                      </div>
+                      {registrando && (
+                        <input value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Tu nombre (opcional)" style={{ ...input, width: "100%", marginBottom: 10 }} />
+                      )}
                       <div style={{ display: "flex", alignItems: "baseline", marginBottom: 6 }}>
                         <div style={{ fontFamily: T.mono, fontSize: 10, color: T.muted }}>CONTRASEÑA</div>
-                        <button onClick={() => { setPaso("reset"); setError(null); }} style={{ marginLeft: "auto", border: "none", background: "none", fontSize: 12, color: T.ia, cursor: "pointer", padding: 0 }}>Restablecer</button>
+                        {!registrando && <button onClick={() => { setPaso("reset"); setError(null); }} style={{ marginLeft: "auto", border: "none", background: "none", fontSize: 12, color: T.ia, cursor: "pointer", padding: 0 }}>Restablecer</button>}
                       </div>
-                      <input type="password" value={clave} onChange={(e) => setClave(e.target.value)} onKeyDown={(e) => e.key === "Enter" && entrarConClave()} placeholder="mínimo 8 caracteres" style={{ ...input, width: "100%", marginBottom: 12 }} />
+                      <input type="password" value={clave} onChange={(e) => setClave(e.target.value)} onKeyDown={(e) => e.key === "Enter" && (registrando ? crearCuenta() : entrarConClave())} placeholder={registrando ? "Crea una contraseña (mínimo 8)" : "Tu contraseña"} style={{ ...input, width: "100%", marginBottom: 12 }} />
                       {errorBox}
-                      {ofrecerRegistro && (
-                        <button onClick={crearCuenta} disabled={cargando || clave.length < 8} style={{ width: "100%", border: `1px solid ${T.ia}`, background: T.surface, color: T.ia, fontSize: 13.5, fontWeight: 600, padding: 12, borderRadius: 9, cursor: "pointer", marginBottom: 10 }}>
-                        ¿Primera vez? Crear cuenta con estos datos
+                      {ofrecerRegistro && !registrando && (
+                        <button onClick={() => { setRegistrando(true); setError(null); }} style={{ width: "100%", border: `1px solid ${T.ia}`, background: T.surface, color: T.ia, fontSize: 13.5, fontWeight: 600, padding: 12, borderRadius: 9, cursor: "pointer", marginBottom: 10 }}>
+                          Ese correo no tiene cuenta · Crear una ahora
                         </button>
                       )}
-                      <button onClick={entrarConClave} disabled={cargando || !correo.includes("@") || !clave} style={primario}>{cargando ? "Verificando…" : "Entrar"}</button>
+                      {registrando ? (
+                        <button onClick={crearCuenta} disabled={cargando || !correo.includes("@") || clave.length < 8} style={primario}>{cargando ? "Creando…" : "Crear mi cuenta"}</button>
+                      ) : (
+                        <button onClick={entrarConClave} disabled={cargando || !correo.includes("@") || !clave} style={primario}>{cargando ? "Verificando…" : "Entrar"}</button>
+                      )}
                     </div>
                   )}
                   <div style={{ display: "flex", alignItems: "center", gap: 12, margin: "6px 0" }}>

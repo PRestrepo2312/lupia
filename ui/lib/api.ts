@@ -80,6 +80,10 @@ export const auth = {
 
 export interface Suscripcion { id: number; departamento: string | null; municipio: string | null }
 export interface PerfilEmpresa { tiene_empresa: boolean; nit: string | null; intereses: string[] }
+export interface PerfilPersona {
+  correo?: string; nombre: string | null; telefono: string | null;
+  ciudad: string | null; profesion: string | null; sobre_mi: string | null;
+}
 export interface DocumentoSecop {
   doc_id: string; nombre: string; tipo: string; tam: number;
   relevancia?: "alta" | "media" | "baja"; categoria?: string;
@@ -110,6 +114,9 @@ export const lupia = {
   guardarPerfilEmpresa: (p: PerfilEmpresa) =>
     api("/empresa/perfil", { method: "POST", body: JSON.stringify(p) }),
   miPerfilEmpresa: () => api<PerfilEmpresa>("/empresa/perfil"),
+  miPerfil: () => api<PerfilPersona>("/perfil"),
+  guardarPerfil: (p: PerfilPersona) =>
+    api("/perfil", { method: "POST", body: JSON.stringify(p) }),
   convocatorias: () =>
     api<{ nit: string | null; con_historial: boolean; convocatorias: Convocatoria[] }>("/empresa/convocatorias"),
   enviarConvocatorias: () =>

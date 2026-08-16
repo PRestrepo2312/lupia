@@ -21,7 +21,7 @@ export function Header() {
 
   return (
     <header style={{ position: "sticky", top: 0, zIndex: 20, background: T.surface, borderBottom: `1px solid ${T.line}` }}>
-      <div style={{ maxWidth: 1240, margin: "0 auto", padding: "14px 28px", display: "flex", alignItems: "center", gap: 28 }}>
+      <div className="lup-header" style={{ maxWidth: 1240, margin: "0 auto", padding: "14px 28px", display: "flex", alignItems: "center", gap: 28, flexWrap: "wrap" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <Link href="/" title="Volver al monitor" style={{ display: "flex", alignItems: "center", gap: 10, color: T.ink, textDecoration: "none" }}>
             <div style={{ width: 26, height: 26, borderRadius: "50%", border: `2.5px solid ${T.ink}`, position: "relative" }}>
@@ -39,7 +39,7 @@ export function Header() {
             </div>
           )}
         </div>
-        <nav style={{ display: "flex", gap: 2, marginLeft: "auto" }}>
+        <nav className="lup-header-nav" style={{ display: "flex", gap: 2, marginLeft: "auto" }}>
           {LINKS.map(([href, label]) => {
             const on = path === href;
             return (
@@ -59,10 +59,13 @@ export function Header() {
             </button>
           )}
         </nav>
-        <button onClick={() => pedir("alertas")} style={{ border: `1px solid ${T.ink}`, background: T.ink, color: T.surface, fontSize: 13, fontWeight: 600, padding: "9px 16px", borderRadius: 8, cursor: "pointer" }}>Recibir alertas</button>
+        <button onClick={() => pedir("alertas")} style={{ border: `1px solid ${T.ink}`, background: T.ink, color: T.surface, fontSize: 13, fontWeight: 600, padding: "9px 16px", borderRadius: 8, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 7 }}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0" /></svg>
+          Alertas
+        </button>
         {auth && usuario ? (
           <div style={{ display: "flex", alignItems: "center", gap: 9, paddingLeft: 14, borderLeft: `1px solid ${T.line}` }}>
-            <div title={usuario.correo} style={{ width: 29, height: 29, borderRadius: "50%", background: T.surfaceAlt, border: "1px solid #d8d3c7", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11.5, fontWeight: 700, color: T.ink2 }}>{iniciales}</div>
+            <Link href="/perfil" title="Mi perfil" style={{ width: 29, height: 29, borderRadius: "50%", background: path === "/perfil" ? T.ink : T.surfaceAlt, border: "1px solid #d8d3c7", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11.5, fontWeight: 700, color: path === "/perfil" ? T.surface : T.ink2, textDecoration: "none" }}>{iniciales}</Link>
             <button onClick={salir} style={{ border: "none", background: "none", color: T.muted, fontSize: 12.5, cursor: "pointer", padding: 0 }}>Salir</button>
           </div>
         ) : (

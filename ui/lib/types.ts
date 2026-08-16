@@ -1,6 +1,5 @@
-export type Categoria =
-  | "Infraestructura y vías" | "Emergencias y desastres" | "Salud" | "Educación"
-  | "Agua y saneamiento" | "Tecnología y datos" | "Ambiente" | "Bienestar social";
+// Categoria = tipo de contrato real de SECOP (Obra, Suministros, Prestación de servicios, ...)
+export type Categoria = string;
 
 export interface Capa { capa: string; titulo: string; metrica: string; pct: number; detalle: string; }
 export interface Evidencia { fuente: string; dato: string; }

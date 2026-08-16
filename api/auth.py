@@ -100,8 +100,9 @@ def usuario_actual(authorization: str = Header(default="")) -> dict:
 def registro(r: Registro):
     with db.get_conn() as conn:
         if auth.obtener_usuario(conn, r.correo):
-            raise HTTPException(409, "Ese correo ya esta registrado. Usa /auth/ingreso "
-                                     "o /auth/restablecer/solicitar si olvidaste la clave.")
+            raise HTTPException(409, "Ese correo ya tiene una cuenta en LupIA. "
+                                     "Inicia sesion con tu contrasena; si la olvidaste, "
+                                     "usa la opcion Restablecer.")
         usuario = auth.crear_usuario(conn, r.correo, nombre=r.nombre,
                                      hash_=auth.hash_clave(r.clave))
     return _respuesta_token(dict(usuario), nuevo=True)

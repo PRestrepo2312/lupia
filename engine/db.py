@@ -121,6 +121,15 @@ CREATE TABLE IF NOT EXISTS analisis_docs_cache (
     analisis TEXT,
     actualizado_en TEXT DEFAULT (datetime('now'))
 );
+CREATE TABLE IF NOT EXISTS persona_perfil (
+    correo TEXT PRIMARY KEY,
+    nombre TEXT,
+    telefono TEXT,
+    ciudad TEXT,
+    profesion TEXT,
+    sobre_mi TEXT,
+    actualizado_en TEXT DEFAULT (datetime('now'))
+);
 """
 
 SCHEMA_PG = _TABLA_CONTRATOS + """
@@ -183,6 +192,15 @@ CREATE TABLE IF NOT EXISTS documentos_cache (
 CREATE TABLE IF NOT EXISTS analisis_docs_cache (
     id_contrato TEXT PRIMARY KEY,
     analisis TEXT,
+    actualizado_en TIMESTAMPTZ DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS persona_perfil (
+    correo TEXT PRIMARY KEY,
+    nombre TEXT,
+    telefono TEXT,
+    ciudad TEXT,
+    profesion TEXT,
+    sobre_mi TEXT,
     actualizado_en TIMESTAMPTZ DEFAULT now()
 );
 """

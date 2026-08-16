@@ -29,6 +29,7 @@ function trazaDesdePerfil(p: any): TrazaItem[] {
 export function ContractDetail({ c, onBack }: { c: Contrato; onBack: () => void }) {
   const { auth, usuario, pedir, toast } = useAuth();
   const [pdf, setPdf] = useState(false);
+  const [textoPeticion, setTextoPeticion] = useState("");
   const [traza, setTraza] = useState<TrazaItem[] | null>(null);
   const [trazaError, setTrazaError] = useState(false);
   const color = riesgo(c.score);
@@ -97,17 +98,33 @@ export function ContractDetail({ c, onBack }: { c: Contrato; onBack: () => void 
     }
   };
 
+  const plantillaPeticion = () =>
+    `${c.ciudad || c.dept}, ${c.fecha}
+
+Señores
+${c.entidad}
+Oficina de Atención al Ciudadano
+
+Referencia: Derecho de petición · Ley 1755 de 2015 · contrato ${c.idContrato}
+
+En ejercicio del derecho fundamental de petición, solicito información sobre el contrato de la referencia, suscrito el ${c.fecha} por valor de ${fmtM(c.valor)} bajo la modalidad de ${c.modalidad || "contratación directa"}, cuyo objeto es "${c.objeto}".
+
+Solicito: (i) los estudios previos y el análisis del sector que sustentan el precio pactado; (ii) la justificación de la relación del objeto contratado con el foco de gasto declarado; (iii) la experiencia acreditada por el contratista; (iv) copia de las actas de supervisión suscritas a la fecha.
+
+Sustento la solicitud en información publicada por la propia entidad en SECOP II${c.url ? ` (${c.url})` : ""}. No formulo acusación alguna.
+
+Atentamente,
+
+
+_____________________
+C.C. · correo de notificación`;
+
+  const abrirPeticion = () => { setTextoPeticion(plantillaPeticion()); setPdf(true); };
+
   const descargarPeticion = () => {
+    const cuerpo = textoPeticion.split("\n").map((l) => l.trim() === "" ? "<br>" : `<p style="margin:0 0 6px">${l.replace(/&/g, "&amp;").replace(/</g, "&lt;")}</p>`).join("");
     const html = `<!doctype html><html lang="es"><meta charset="utf-8"><title>Derecho de petición · ${c.idContrato}</title>
-<body style="font-family:Georgia,serif;max-width:700px;margin:40px auto;line-height:1.7;color:#222">
-<div style="text-align:right">${c.ciudad || c.dept}, ${c.fecha}</div>
-<p><strong>Señores<br>${c.entidad}<br>Oficina de Atención al Ciudadano</strong></p>
-<p><strong>Referencia:</strong> Derecho de petición · Ley 1755 de 2015 · contrato ${c.idContrato}</p>
-<p>En ejercicio del derecho fundamental de petición, solicito información sobre el contrato de la referencia, suscrito el ${c.fecha} por valor de ${fmtM(c.valor)} bajo la modalidad de ${c.modalidad || "contratación directa"}, cuyo objeto es "${c.objeto}".</p>
-<p>Solicito: (i) los estudios previos y el análisis del sector que sustentan el precio pactado; (ii) la justificación de la relación del objeto contratado con la emergencia declarada; (iii) la experiencia acreditada por el contratista; (iv) copia de las actas de supervisión suscritas a la fecha.</p>
-<p>Sustento la solicitud en información publicada por la propia entidad en SECOP II${c.url ? ` (${c.url})` : ""}. No formulo acusación alguna.</p>
-<p>Atentamente,<br><br>_____________________<br>C.C. · correo de notificación</p>
-</body></html>`;
+<body style="font-family:Georgia,serif;max-width:700px;margin:40px auto;line-height:1.7;color:#222">${cuerpo}</body></html>`;
     const blob = new Blob([html], { type: "text/html;charset=utf-8" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
@@ -133,7 +150,7 @@ export function ContractDetail({ c, onBack }: { c: Contrato; onBack: () => void 
         </svg>
         Volver al monitor
       </button>
-      <div style={{ display: "grid", gridTemplateColumns: "1.55fr 1fr", gap: 24, alignItems: "start" }}>
+      <div className="lup-detalle" style={{ display: "grid", gridTemplateColumns: "1.55fr 1fr", gap: 24, alignItems: "start" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           <div style={{ ...card, padding: "26px 28px" }}>
             <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 12, flexWrap: "wrap" }}>
@@ -142,7 +159,7 @@ export function ContractDetail({ c, onBack }: { c: Contrato; onBack: () => void 
               <span style={{ fontFamily: T.mono, fontSize: 10, background: "#eef3f6", color: T.ia, padding: "3px 8px", borderRadius: 4 }}>{c.cat.toUpperCase()}</span>
             </div>
             <h1 style={{ fontSize: 26, lineHeight: 1.25, letterSpacing: "-0.02em", margin: "0 0 18px", fontWeight: 700 }}>{c.objeto}</h1>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 18 }}>
+            <div className="lup-detalle-meta" style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 18 }}>
               {meta.map(([k, v]) => (
                 <div key={k}>
                   <div style={{ fontFamily: T.mono, fontSize: 10, color: T.muted, marginBottom: 5 }}>{k}</div>
@@ -294,12 +311,12 @@ export function ContractDetail({ c, onBack }: { c: Contrato; onBack: () => void 
           )}
         </div>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: 14, position: "sticky", top: 96 }}>
+        <div className="lup-detalle-side" style={{ display: "flex", flexDirection: "column", gap: 14, position: "sticky", top: 96 }}>
           <div style={{ ...card, padding: 22 }}>
             <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>Del dato a la acción</div>
             <div style={{ fontSize: 13, color: T.muted, lineHeight: 1.5, marginBottom: 16 }}>Tres formas de hacer algo con esta señal.</div>
             <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
-              <button onClick={() => setPdf(true)} style={{ border: `1px solid ${T.ink}`, background: T.ink, color: T.surface, fontSize: 13.5, fontWeight: 600, padding: 12, borderRadius: 9, cursor: "pointer", textAlign: "left" }}>Generar derecho de petición</button>
+              <button onClick={abrirPeticion} style={{ border: `1px solid ${T.ink}`, background: T.ink, color: T.surface, fontSize: 13.5, fontWeight: 600, padding: 12, borderRadius: 9, cursor: "pointer", textAlign: "left" }}>Generar derecho de petición</button>
               <button onClick={avisarme} className="lup-card" style={{ border: "1px solid #d8d3c7", background: T.surface, color: T.ink, fontSize: 13.5, fontWeight: 600, padding: 12, borderRadius: 9, cursor: "pointer", textAlign: "left" }}>Avisarme si cambia o se adiciona{auth ? "" : " · requiere cuenta"}</button>
               <a href={c.url ?? "https://www.secop.gov.co"} target="_blank" rel="noreferrer" style={{ border: "1px solid #d8d3c7", background: T.surface, color: T.ink, fontSize: 13.5, fontWeight: 600, padding: 12, borderRadius: 9, textAlign: "left" }}>Abrir en SECOP II ↗</a>
             </div>
@@ -357,20 +374,18 @@ export function ContractDetail({ c, onBack }: { c: Contrato; onBack: () => void 
               <div style={{ fontFamily: T.mono, fontSize: 10, background: "#eef3f6", color: T.ia, padding: "3px 8px", borderRadius: 4 }}>LEY 1755 DE 2015</div>
               <button onClick={() => setPdf(false)} style={{ marginLeft: "auto", border: "none", background: "none", fontSize: 18, color: T.muted, cursor: "pointer" }}>✕</button>
             </div>
-            <div style={{ padding: 26, background: T.surfaceAlt }}>
-              <div style={{ background: "#fff", border: "1px solid #d8d3c7", padding: "30px 34px", fontSize: 12.5, lineHeight: 1.7, color: "#2a2822", maxHeight: 340, overflow: "auto" }}>
-                <div style={{ textAlign: "right", fontFamily: T.mono, fontSize: 11, color: T.muted }}>{c.ciudad}, {c.fecha}</div>
-                <div style={{ marginTop: 16, fontWeight: 700 }}>Señores<br />{c.entidad}<br />Oficina de Atención al Ciudadano</div>
-                <div style={{ marginTop: 14 }}><strong>Referencia:</strong> Derecho de petición · Ley 1755 de 2015 · contrato {c.idContrato}</div>
-                <p style={{ margin: "14px 0 0" }}>En ejercicio del derecho fundamental de petición, solicito información sobre el contrato de la referencia, suscrito el {c.fecha} por valor de {fmtM(c.valor)} bajo la modalidad de {c.modalidad || "contratación directa"}, cuyo objeto es “{c.objeto}”.</p>
-                <p style={{ margin: "12px 0 0" }}>Solicito: (i) los estudios previos y el análisis del sector que sustentan el precio unitario pactado; (ii) la justificación de la relación del objeto contratado con el foco de gasto declarado; (iii) la experiencia acreditada por el contratista; (iv) copia de las actas de supervisión suscritas a la fecha.</p>
-                <p style={{ margin: "12px 0 0" }}>Sustento la solicitud en información publicada por la propia entidad en SECOP II. No formulo acusación alguna.</p>
-                <div style={{ marginTop: 18 }}>Atentamente,<br />_____________________<br />C.C. · correo de notificación</div>
+            <div style={{ padding: "18px 26px 6px" }}>
+              <div style={{ fontSize: 12.5, color: T.muted, lineHeight: 1.5, marginBottom: 10 }}>
+                Texto editable: complementa, quita o ajusta lo que quieras antes de descargar.
               </div>
+              <textarea value={textoPeticion} onChange={(e) => setTextoPeticion(e.target.value)}
+                spellCheck={false}
+                style={{ width: "100%", minHeight: 320, maxHeight: "50vh", background: "#fff", border: "1px solid #d8d3c7", borderRadius: 10, padding: "18px 20px", fontFamily: "Georgia, serif", fontSize: 13, lineHeight: 1.7, color: "#2a2822", resize: "vertical", outline: "none" }} />
             </div>
-            <div style={{ padding: "18px 26px", display: "flex", gap: 10, alignItems: "center", borderTop: `1px solid ${T.line}` }}>
+            <div style={{ padding: "14px 26px 22px", display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", borderTop: `1px solid ${T.line}` }}>
               <button onClick={descargarPeticion} style={{ border: "none", background: T.ink, color: T.surface, fontSize: 13.5, fontWeight: 600, padding: "11px 18px", borderRadius: 9, cursor: "pointer" }}>Descargar documento</button>
-              <div style={{ fontSize: 11.5, color: T.faint, marginLeft: "auto" }}>Se descarga listo para completar con tus datos e imprimir o radicar.</div>
+              <button onClick={() => setTextoPeticion(plantillaPeticion())} style={{ border: "1px solid #d8d3c7", background: T.surface, color: T.ink2, fontSize: 13, fontWeight: 600, padding: "11px 16px", borderRadius: 9, cursor: "pointer" }}>Restaurar texto</button>
+              <div style={{ fontSize: 11.5, color: T.faint, marginLeft: "auto" }}>Se descarga listo para firmar, imprimir o radicar.</div>
             </div>
           </div>
         </div>

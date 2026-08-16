@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { CONTRATOS } from "@/lib/data";
-import { Contrato, Capa, Categoria } from "@/lib/types";
+import { Contrato, Capa } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -11,7 +11,7 @@ interface AlertaApi {
   valor_del_contrato: number | null; proveedor_adjudicado: string | null;
   descripcion_del_proceso: string | null; urlproceso: string | null;
   fecha_de_firma: string | null; modalidad_de_contratacion: string | null;
-  documento_proveedor: string | null;
+  documento_proveedor: string | null; tipo_de_contrato: string | null;
 }
 
 const SENAL_LABEL: Record<string, string> = {
@@ -42,18 +42,6 @@ const COORDS: Record<string, [number, number]> = {
   "Santander": [6.69, -73.28], "Sucre": [9.06, -75.11], "Tolima": [4.03, -75.26],
   "Valle del Cauca": [3.87, -76.52], "Vaupés": [0.85, -70.81], "Vichada": [4.71, -69.41],
 };
-
-function categoria(texto: string): Categoria {
-  const t = texto.toLowerCase();
-  if (/(v[íi]a|pavimen|obra|puente|malla vial|infraestructura|talud|construcci)/.test(t)) return "Infraestructura y vías";
-  if (/(salud|hospital|ambulanc|m[ée]dic|medicamento|ips|ese )/.test(t)) return "Salud";
-  if (/(educa|colegio|escuela|sede educativa|pae |alimentaci[óo]n escolar)/.test(t)) return "Educación";
-  if (/(acueducto|alcantarillado|agua potable|saneamiento|residuos|aseo)/.test(t)) return "Agua y saneamiento";
-  if (/(software|tecnolog|sistema de informaci|licencia|datos|c[óo]mputo|internet)/.test(t)) return "Tecnología y datos";
-  if (/(ambient|reforest|cuenca|arbolado|ecosistema)/.test(t)) return "Ambiente";
-  if (/(kit|albergue|carpa|colchoneta|ayuda humanitaria|emergencia|urgencia|desastre|escombro|maquinaria amarilla)/.test(t)) return "Emergencias y desastres";
-  return "Bienestar social";
-}
 
 // Jitter determinista para que los puntos del mismo departamento no se apilen
 function jitter(id: string): [number, number] {
@@ -129,7 +117,7 @@ export async function GET(req: Request) {
         lon: clon + jlon,
         valor: Math.round((base.valor_del_contrato ?? 0) / 1e6),
         score,
-        cat: categoria(objeto),
+        cat: base.tipo_de_contrato || "Otro",
         evento: "Sismo 7,4 · 10 ago 2026",
         fecha,
         modalidad,

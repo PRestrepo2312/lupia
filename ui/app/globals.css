@@ -13,3 +13,27 @@ select,input{font-family:inherit}
 .lup-card:hover{border-color:#1b1a17 !important}
 .lup-scroll::-webkit-scrollbar{width:8px}
 .lup-scroll::-webkit-scrollbar-thumb{background:#d8d3c7;border-radius:4px}
+
+/* ---------- Responsive ---------- */
+/* Tablet y menos */
+@media (max-width: 860px){
+  .lup-detalle{grid-template-columns:1fr !important}
+  .lup-detalle-side{position:static !important;top:auto !important}
+  .lup-empresa-kpis{grid-template-columns:repeat(2,1fr) !important}
+  .lup-empresa-tabla{font-size:12px}
+}
+/* Móvil */
+@media (max-width: 620px){
+  .lup-kpis{grid-template-columns:repeat(2,1fr) !important}
+  .lup-fila-contrato{grid-template-columns:1fr !important;gap:14px !important}
+  .lup-fila-contrato .lup-fila-side{border-left:none !important;padding-left:0 !important;border-top:1px solid #eee9de;padding-top:14px}
+  .lup-fila-score{flex-direction:row !important;justify-content:flex-start;gap:12px}
+  .perfil-grid{grid-template-columns:1fr !important}
+  .lup-login{grid-template-columns:1fr !important}
+  .lup-login-aside{display:none !important}
+  .lup-header{gap:12px !important;padding-left:16px !important;padding-right:16px !important}
+  .lup-header-nav{order:3;width:100%;justify-content:flex-start;margin-left:0 !important}
+  .lup-empresa-kpis{grid-template-columns:1fr !important}
+  .lup-detalle-meta{grid-template-columns:repeat(2,1fr) !important}
+  main{padding-left:16px !important;padding-right:16px !important}
+}

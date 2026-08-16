@@ -4,7 +4,6 @@ import * as d3 from "d3";
 import * as topojson from "topojson-client";
 import { Contrato } from "@/lib/types";
 import { getContratos } from "@/lib/api";
-import { CATEGORIAS, EVENTOS } from "@/lib/data";
 import { T, fmtM, riesgo, nivelLabel } from "@/lib/theme";
 
 const W = 860, H = 640;
@@ -16,19 +15,17 @@ interface Props {
   // Modo embebido (dentro del Monitor): los filtros vienen de afuera y se abre el analisis
   cat?: string;
   dep?: string;
-  evento?: string;
   onVerAnalisis?: (id: string) => void;
 }
 
-export function MapaClient({ cat: catProp, dep: depProp, evento: eventoProp, onVerAnalisis }: Props) {
+export function MapaClient({ cat: catProp, dep: depProp, onVerAnalisis }: Props) {
   const embebido = catProp !== undefined;
   const [data, setData] = useState<Contrato[]>([]);
   const [catLocal, setCatLocal] = useState("Todas");
-  const [eventoLocal, setEventoLocal] = useState("Todos los eventos");
   const [depLocal, setDepLocal] = useState("Todos");
   const cat = catProp ?? catLocal;
-  const evento = eventoProp ?? eventoLocal;
   const dep = depProp ?? depLocal;
+  const categorias = useMemo(() => Array.from(new Set(data.map((c) => c.cat).filter(Boolean))).sort(), [data]);
   const [orden, setOrden] = useState<"riesgo" | "valor" | "fecha">("riesgo");
   const [sel, setSel] = useState<string | null>(null);
   const svgRef = useRef<SVGSVGElement | null>(null);
@@ -38,10 +35,7 @@ export function MapaClient({ cat: catProp, dep: depProp, evento: eventoProp, onV
   useEffect(() => { getContratos().then(setData); }, []);
 
   const depOk = (d: string) => dep === "Todos" || !dep || d === dep || norm(d).includes(norm(dep));
-  const pasa = (c: Contrato) =>
-    (cat === "Todas" || c.cat === cat)
-    && (cat !== "Emergencias y desastres" || evento === "Todos los eventos" || c.evento === evento)
-    && depOk(c.dept);
+  const pasa = (c: Contrato) => (cat === "Todas" || c.cat === cat) && depOk(c.dept);
 
   const projection = useMemo(() => d3.geoMercator().fitSize([W, H], { type: "MultiPoint", coordinates: [[-80.5, -4.6], [-66.2, 13.2]] } as any), []);
   const rS = useMemo(() => d3.scaleSqrt().domain([0, 12500]).range([9, 22]), []);
@@ -137,7 +131,7 @@ export function MapaClient({ cat: catProp, dep: depProp, evento: eventoProp, onV
       .attr("fill-opacity", .92).attr("stroke-width", (c: any) => (sel === c.id ? 2.6 : 1.6))
       .attr("stroke", (c: any) => (sel === c.id ? T.ink : "#f2f0e8"));
     g.select("text.sc").text((c: any) => c.score);
-  }, [data, cat, evento, dep, sel, projection, rS]);
+  }, [data, cat, dep, sel, projection, rS]);
 
   const zoomBy = (k: number) => {
     const svg = d3.select(svgRef.current!);
@@ -162,24 +156,14 @@ export function MapaClient({ cat: catProp, dep: depProp, evento: eventoProp, onV
         <>
           <div style={{ fontFamily: T.mono, fontSize: 11, letterSpacing: "0.08em", color: T.alto, marginBottom: 10 }}>MAPA NACIONAL · 33 DEPARTAMENTOS</div>
           <h1 style={{ fontSize: 34, lineHeight: 1.1, letterSpacing: "-0.025em", margin: "0 0 10px", fontWeight: 700 }}>Cada punto es un contrato público georreferenciado</h1>
-          <p style={{ margin: "0 0 20px", fontSize: 15, lineHeight: 1.55, color: T.muted, maxWidth: 660 }}>Filtra por categoría y, dentro de emergencias, por el evento que la originó. El color es el nivel de riesgo del modelo; el tamaño, la cuantía.</p>
+          <p style={{ margin: "0 0 20px", fontSize: 15, lineHeight: 1.55, color: T.muted, maxWidth: 660 }}>Filtra por tipo de contrato de SECOP. El color es el nivel de riesgo del modelo; el tamaño, la cuantía.</p>
 
           <div style={{ display: "flex", gap: 7, flexWrap: "wrap", marginBottom: 9 }}>
-            {["Todas", ...CATEGORIAS].map((c) => {
+            {["Todas", ...categorias].map((c) => {
               const on = cat === c;
-              return <button key={c} onClick={() => { setCatLocal(c); if (c !== "Emergencias y desastres") setEventoLocal("Todos los eventos"); }} style={{ border: `1px solid ${on ? T.ink : "#d8d3c7"}`, background: on ? T.ink : T.surface, color: on ? T.surface : T.ink2, fontSize: 12.5, fontWeight: 500, padding: "7px 13px", borderRadius: 99, cursor: "pointer" }}>{c === "Todas" ? "Todas las categorías" : c}</button>;
+              return <button key={c} onClick={() => setCatLocal(c)} style={{ border: `1px solid ${on ? T.ink : "#d8d3c7"}`, background: on ? T.ink : T.surface, color: on ? T.surface : T.ink2, fontSize: 12.5, fontWeight: 500, padding: "7px 13px", borderRadius: 99, cursor: "pointer" }}>{c === "Todas" ? "Todos los tipos" : c}</button>;
             })}
           </div>
-
-          {cat === "Emergencias y desastres" && (
-            <div style={{ display: "flex", gap: 7, flexWrap: "wrap", alignItems: "center", marginBottom: 9 }}>
-              <span style={{ fontFamily: T.mono, fontSize: 10, color: T.muted, marginRight: 4 }}>EVENTO</span>
-              {["Todos los eventos", ...EVENTOS].map((e) => {
-                const on = evento === e;
-                return <button key={e} onClick={() => setEventoLocal(e)} style={{ border: `1px ${on ? "solid" : "dashed"} ${on ? T.alto : "#d8d3c7"}`, background: on ? T.alto : T.surface, color: on ? T.surface : T.ink2, fontSize: 12, padding: "6px 12px", borderRadius: 99, cursor: "pointer" }}>{e}</button>;
-              })}
-            </div>
-          )}
         </>
       )}
 
@@ -239,14 +223,14 @@ export function MapaClient({ cat: catProp, dep: depProp, evento: eventoProp, onV
               <div style={{ fontSize: 13, color: T.muted, marginBottom: 12 }}>{fmtM(elegido.valor)} · riesgo {elegido.score}{elegido.evento ? ` · ${elegido.evento}` : ""}</div>
               {onVerAnalisis ? (
                 <button onClick={() => onVerAnalisis(elegido.id)}
-                  style={{ width: "100%", border: "none", background: T.ink, color: T.surface, fontSize: 13.5, fontWeight: 600, padding: "11px 0", borderRadius: 8, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
-                  Ver el análisis de la IA
+                  style={{ width: "100%", border: "none", background: T.ia, color: T.surface, fontSize: 13.5, fontWeight: 600, padding: "11px 0", borderRadius: 8, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+                  Analizar con IA
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M5 12h14M13 6l6 6-6 6" />
                   </svg>
                 </button>
               ) : (
-                <a href="/" style={{ fontSize: 13, fontWeight: 600 }}>Ver análisis de la IA →</a>
+                <a href="/" style={{ fontSize: 13, fontWeight: 600 }}>Analizar con IA →</a>
               )}
             </div>
           )}

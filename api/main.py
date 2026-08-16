@@ -115,7 +115,8 @@ def listar_alertas(departamento: str | None = None, limite: int = 50):
         SELECT a.id, a.id_contrato, a.senal, a.score, a.detalle, a.creada_en,
                c.nombre_entidad, c.departamento, c.ciudad, c.valor_del_contrato,
                c.proveedor_adjudicado, c.descripcion_del_proceso, c.urlproceso,
-               c.fecha_de_firma, c.modalidad_de_contratacion, c.documento_proveedor
+               c.fecha_de_firma, c.modalidad_de_contratacion, c.documento_proveedor,
+               c.tipo_de_contrato
         FROM alertas a JOIN contratos c ON c.id_contrato = a.id_contrato
     """
     params: list = []
@@ -474,6 +475,42 @@ def guardar_perfil_empresa(p: PerfilEmpresa, usuario: dict = Depends(usuario_act
             (usuario["correo"], int(p.tiene_empresa),
              "".join(c for c in (p.nit or "") if c.isdigit()) or None,
              ",".join(p.intereses)),
+        )
+    return {"ok": True}
+
+
+# ---------- perfil de persona (datos basicos, opcionales) ----------
+
+class PerfilPersona(BaseModel):
+    nombre: str | None = None
+    telefono: str | None = None
+    ciudad: str | None = None
+    profesion: str | None = None
+    sobre_mi: str | None = None
+
+
+@app.get("/perfil")
+def ver_perfil(usuario: dict = Depends(usuario_actual)):
+    with db.get_conn() as conn:
+        fila = conn.execute(
+            "SELECT nombre, telefono, ciudad, profesion, sobre_mi FROM persona_perfil "
+            "WHERE correo = ?", (usuario["correo"],)).fetchone()
+    base = {"correo": usuario["correo"]}
+    if not fila:
+        return {**base, "nombre": usuario.get("nombre"), "telefono": None,
+                "ciudad": None, "profesion": None, "sobre_mi": None}
+    return {**base, **dict(fila)}
+
+
+@app.post("/perfil")
+def guardar_perfil(p: PerfilPersona, usuario: dict = Depends(usuario_actual)):
+    with db.get_conn() as conn:
+        conn.execute(
+            "INSERT INTO persona_perfil (correo, nombre, telefono, ciudad, profesion, sobre_mi) "
+            "VALUES (?,?,?,?,?,?) ON CONFLICT (correo) DO UPDATE SET "
+            "nombre=excluded.nombre, telefono=excluded.telefono, ciudad=excluded.ciudad, "
+            "profesion=excluded.profesion, sobre_mi=excluded.sobre_mi",
+            (usuario["correo"], p.nombre, p.telefono, p.ciudad, p.profesion, p.sobre_mi),
         )
     return {"ok": True}
 

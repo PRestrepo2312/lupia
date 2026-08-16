@@ -48,7 +48,7 @@ export function ChatLupa() {
     setInput(""); setPensando(true); setAbierto(true);
     try {
       const r = await lupia.chat(q);
-      setMsgs((m) => [...m, { who: "LUPIA · CLAUDE SOBRE SECOP II", text: r.respuesta }]);
+      setMsgs((m) => [...m, { who: "LUPIA · SOBRE SECOP II", text: r.respuesta }]);
     } catch {
       setMsgs((m) => [...m, {
         who: "LUPIA · RESPUESTA DE EJEMPLO",
@@ -58,7 +58,7 @@ export function ChatLupa() {
     setPensando(false);
   };
 
-  const sugerencias = ["¿En qué se está gastando la plata en Pereira?", "¿Cuáles contratos están sobre el precio histórico?", "¿Hay contratistas que aparecen por primera vez?"];
+  const sugerencias = ["¿En qué se está gastando la plata en Pereira?", "¿Qué contratistas aparecen por primera vez tras el sismo?", "¿Cuáles son las señales más fuertes hoy?"];
 
   return (
     <>
