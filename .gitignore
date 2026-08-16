@@ -15,3 +15,4 @@ node_modules/
 
 # Estrategia interna del equipo (no va al repo)
 LUPIA_PLAYBOOK*.md
+.claude/
